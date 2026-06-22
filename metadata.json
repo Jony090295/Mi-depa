@@ -1,0 +1,6 @@
+{
+  "name": "Mi depa",
+  "description": "Tu centro de control para compartir departamento. Organiza gastos por ingresos, pagos recurrentes, lista de compras con chat de IA y directorio de servicios de confianza.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
