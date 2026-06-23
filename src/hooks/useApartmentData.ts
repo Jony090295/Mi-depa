@@ -107,11 +107,13 @@ export function useApartmentData(user: User) {
     setLoading(true);
     try {
       // 1. Get the user's apartment
-      const { data: member } = await supabase
+      const { data: members } = await supabase
         .from('apartment_members')
         .select('apartment_id')
         .eq('user_id', user.id)
-        .maybeSingle();
+        .order('joined_at', { ascending: false })
+        .limit(1);
+      const member = members?.[0] ?? null;
 
       if (!member) { setNoApartment(true); setLoading(false); return; }
 
