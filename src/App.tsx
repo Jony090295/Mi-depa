@@ -19,7 +19,7 @@ import ProjectedBudget from './components/ProjectedBudget';
 // Icons
 import {
   Home, Split, Clock, ShoppingCart, Users, BellRing, ChevronRight,
-  Moon, Sun, Settings, Check, ArrowRight, Plus, Pencil, Trash2, TrendingUp, Loader, Copy,
+  Moon, Sun, Settings, Check, ArrowRight, Plus, Pencil, Trash2, TrendingUp, Loader, Copy, LogOut,
 } from 'lucide-react';
 
 // ─── Auth shell ──────────────────────────────────────────────────────────────
@@ -688,6 +688,13 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
               aria-label={darkMode ? 'Modo claro' : 'Modo oscuro'}
             >
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+            <button
+              onClick={() => { import('./lib/supabase').then(({ supabase }) => supabase.auth.signOut()); }}
+              className="w-10 h-10 flex items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 active:bg-zinc-100 dark:active:bg-zinc-800 transition-colors"
+              aria-label="Cerrar sesión"
+            >
+              <LogOut size={18} />
             </button>
           </div>
         </div>
