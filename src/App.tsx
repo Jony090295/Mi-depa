@@ -87,6 +87,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
   const [homeConfigOpen, setHomeConfigOpen]       = useState(false);
   const [codeCopied, setCodeCopied]               = useState(false);
   const [homeApartmentName, setHomeApartmentName] = useState('');
+  const [homeAddress, setHomeAddress]             = useState('');
   const [homeRentCost, setHomeRentCost]           = useState(0);
   const [homeRentCurrency, setHomeRentCurrency]   = useState<'PEN'|'USD'>('PEN');
   const [homeRentExRate, setHomeRentExRate]        = useState(3.80);
@@ -95,6 +96,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
   useEffect(() => {
     if (aptConfig) {
       setHomeApartmentName(aptConfig.name);
+      setHomeAddress(aptConfig.address ?? '');
       setHomeRentCost(aptConfig.rentCost);
       setHomeRentCurrency(aptConfig.rentCurrency);
       setHomeRentExRate(aptConfig.rentExchangeRate);
@@ -199,9 +201,9 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
 
   const handleUpdateApartmentNameAndRent = async (
     name: string, rent: number, currency: 'PEN' | 'USD' = 'PEN',
-    exchangeRate: number = 3.80, maintenance: number = 0
+    exchangeRate: number = 3.80, maintenance: number = 0, address: string = ''
   ) => {
-    await updateApartmentConfig({ name, rentCost: rent, rentCurrency: currency, rentExchangeRate: exchangeRate, maintenanceCost: maintenance });
+    await updateApartmentConfig({ name, address, rentCost: rent, rentCurrency: currency, rentExchangeRate: exchangeRate, maintenanceCost: maintenance });
 
     // Sync matching bills
     const rentBill = bills.find(b => b.name.toLowerCase().includes('alquiler'));
@@ -915,6 +917,12 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                       <input type="text" value={homeApartmentName} onChange={e => setHomeApartmentName(e.target.value)}
                         className="mt-1 w-full h-10 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                     </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide">Dirección</label>
+                      <input type="text" value={homeAddress} onChange={e => setHomeAddress(e.target.value)}
+                        placeholder="Ej. Av. Larco 123, Miraflores"
+                        className="mt-1 w-full h-10 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[14px] placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide">Alquiler</label>
@@ -964,7 +972,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                       </div>
                     )}
                     <button type="button" onClick={() => {
-                      handleUpdateApartmentNameAndRent(homeApartmentName, homeRentCost, homeRentCurrency, homeRentExRate, homeMaintenanceCost);
+                      handleUpdateApartmentNameAndRent(homeApartmentName, homeRentCost, homeRentCurrency, homeRentExRate, homeMaintenanceCost, homeAddress);
                       setHomeConfigOpen(false);
                     }}
                       className="w-full h-10 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-semibold text-[13px] rounded-xl transition flex items-center justify-center gap-2 cursor-pointer">

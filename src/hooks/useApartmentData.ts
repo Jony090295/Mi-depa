@@ -80,6 +80,7 @@ function rowToSettlement(r: any): SettlementRecord {
 export interface ApartmentConfig {
   id: string;
   name: string;
+  address: string;
   rentCost: number;
   rentCurrency: 'PEN' | 'USD';
   rentExchangeRate: number;
@@ -129,7 +130,7 @@ export function useApartmentData(user: User) {
 
       if (apt) {
         setAptConfig({
-          id: apt.id, name: apt.name,
+          id: apt.id, name: apt.name, address: apt.address ?? '',
           rentCost: apt.rent, rentCurrency: apt.rent_currency,
           rentExchangeRate: apt.rent_exchange_rate,
           maintenanceCost: apt.maintenance,
@@ -180,6 +181,7 @@ export function useApartmentData(user: User) {
     if (!apartmentId) return;
     const update: any = {};
     if (config.name !== undefined)             update.name = config.name;
+    if (config.address !== undefined)          update.address = config.address;
     if (config.rentCost !== undefined)         update.rent = config.rentCost;
     if (config.rentCurrency !== undefined)     update.rent_currency = config.rentCurrency;
     if (config.rentExchangeRate !== undefined) update.rent_exchange_rate = config.rentExchangeRate;

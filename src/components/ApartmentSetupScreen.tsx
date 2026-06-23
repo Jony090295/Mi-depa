@@ -18,6 +18,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode }: Pro
 
   // Create form
   const [deptName, setDeptName]   = useState('');
+  const [deptAddress, setDeptAddress] = useState('');
   const [myName, setMyName]       = useState('');
   const [created, setCreated]     = useState<{ code: string } | null>(null);
   const [codeCopied, setCodeCopied] = useState(false);
@@ -34,7 +35,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode }: Pro
       // 1. Create apartment
       const { data: apt, error: aptErr } = await supabase
         .from('apartments')
-        .insert({ name: deptName.trim(), created_by: user.id })
+        .insert({ name: deptName.trim(), address: deptAddress.trim(), created_by: user.id })
         .select()
         .single();
       if (aptErr) throw aptErr;
@@ -208,7 +209,16 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode }: Pro
               <input
                 type="text" required
                 value={deptName} onChange={e => setDeptName(e.target.value)}
-                placeholder="Ej. Dpto. 302 San Isidro"
+                placeholder="Ej. Depa María y Carlos"
+                className="mt-1 w-full h-12 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wide text-zinc-400">Dirección</label>
+              <input
+                type="text"
+                value={deptAddress} onChange={e => setDeptAddress(e.target.value)}
+                placeholder="Ej. Av. Larco 123, Miraflores"
                 className="mt-1 w-full h-12 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
