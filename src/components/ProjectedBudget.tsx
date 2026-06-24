@@ -28,10 +28,10 @@ function inferCategory(name: string, expCat?: ExpenseCategory): CatKey {
     if (expCat === 'membresia') return 'Suscripciones';
     if (expCat === 'auto') return 'Consumos';
     if (expCat === 'comida') return 'Consumos';
-    if (expCat === 'limpieza') return 'Hogar';
+    if (expCat === 'limpieza') return 'Otros';
   }
   const l = name.toLowerCase();
-  if (/alquiler|mante|limpieza|cochera|depa|cclp/.test(l)) return 'Hogar';
+  if (/alquiler|cochera|depa|cclp/.test(l)) return 'Hogar';
   if (/agua|luz|gas|internet|cel|calidda|servicio/.test(l)) return 'Servicios';
   if (/spotify|netflix|combo|disney|prime|hbo|apple|suscrip/.test(l)) return 'Suscripciones';
   if (/seguro|onco|salud|colágeno|colage|médico|medico|clínica|clinica/.test(l)) return 'Salud';
@@ -308,7 +308,7 @@ export default function ProjectedBudget({ bills, roommates, expenses, rentExchan
                                 item.source === 'fijo'
                                   ? 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-500'
                                   : 'bg-amber-50 dark:bg-amber-950/30 text-amber-600'
-                              }`}>{item.source === 'fijo' ? 'Fijo' : 'Variable'}</span>
+                              }`}>{item.source === 'fijo' ? 'Recurrente' : 'Gasto'}</span>
                               <span className="text-xs text-zinc-600 dark:text-zinc-400 truncate">{item.name}</span>
                               {item.count && item.count > 1 && (
                                 <span className="text-[9px] text-zinc-400 shrink-0">({item.count} gastos)</span>
