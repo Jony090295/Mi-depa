@@ -120,6 +120,7 @@ export function useApartmentData(user: User) {
       const member = members?.[0] ?? null;
 
       if (!member) { setNoApartment(true); setLoading(false); return; }
+      setNoApartment(false);
 
       const aptId = member.apartment_id;
       setApartmentId(aptId);
