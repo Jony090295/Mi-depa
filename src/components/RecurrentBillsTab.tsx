@@ -267,7 +267,7 @@ export default function RecurrentBillsTab({
                   onChange={e => setEditForm(f => ({ ...f, category: e.target.value as ExpenseCategory }))}
                   className="mt-1 w-full h-9 px-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  {CATEGORY_OPTIONS.map(c => <option key={c} value={c}>{CATEGORY_LABELS[c] || c}</option>)}
+                  {CATEGORY_OPTIONS.map(c => <option key={c} value={c}>{CATEGORY_LABELS[c]?.label || c}</option>)}
                 </select>
               </div>
             </div>
