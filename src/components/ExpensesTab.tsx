@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Roommate, Expense, ExpenseCategory, SplitType, RecurrentBill, SettlementRecord } from '../types';
-import { CATEGORY_LABELS } from '../utils';
+import { CATEGORY_LABELS, inferCategoryFromName } from '../utils';
 import { calculateSettlements } from '../utils';
 import { Plus, Trash2, Split, Calendar, ArrowRight, Info, Check, Pencil, X, AlertTriangle, Camera, FileText } from 'lucide-react';
 
@@ -751,7 +751,11 @@ export default function ExpensesTab({
                       type="text"
                       required
                       value={title}
-                      onChange={(e) => setTitle(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setTitle(val);
+                        if (!associatedBillId) setCategory(inferCategoryFromName(val));
+                      }}
                       placeholder="Ej. Mercado Wong, Luz junio..."
                       className="flex-1 h-12 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[15px] focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />

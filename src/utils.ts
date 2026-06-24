@@ -10,6 +10,17 @@ export const CATEGORY_LABELS: Record<string, { label: string; icon: string; bg: 
   otros: { label: "Otros", icon: "HelpCircle", bg: "bg-slate-50 dark:bg-slate-950/40", text: "text-slate-600 dark:text-slate-400" }
 };
 
+export function inferCategoryFromName(name: string): import('./types').ExpenseCategory {
+  const l = name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if (/alquiler|renta|arriendo|departamento|cochera|estacionamiento|cclp|depa\b/.test(l)) return 'alquiler';
+  if (/luz|enel|agua|sedapal|gas|calidda|internet|wifi|cable|telefon|celular|claro|movistar|entel|bitel|mantenimiento|mante|cuota\s*mante|porteria|conserje|arbitrios/.test(l)) return 'servicio';
+  if (/spotify|netflix|disney|hbo|prime|apple|youtube|gym|gimnasio|suscripcion|membresia|membership|crunchyroll|deezer|canva/.test(l)) return 'membresia';
+  if (/gasolina|grifo|gasolinera|uber|taxi|peaje|repsol|pecsa|primax|estacion|revision tecnica|soat|seguro\s*auto/.test(l)) return 'auto';
+  if (/mercado|supermercado|super|wong|tottus|metro|plaza.?vea|vivanda|delivery|rappi|pedidos|comida|almuerzo|cena|desayuno|restaurante|pollo|pizza|sushi|lunch/.test(l)) return 'comida';
+  if (/limpieza|detergente|escoba|trapeador|desinfectante|lejia|jabon|esponja|bolsa.?basura|katia|servicio.?limp/.test(l)) return 'limpieza';
+  return 'otros';
+}
+
 export const INITIAL_ROOMMATES: Roommate[] = [
   { id: "r1", name: "Carlos", income: 3500, color: "#6366f1" }, // Indigo
   { id: "r2", name: "Sofía", income: 5200, color: "#ec4899" },  // Pink

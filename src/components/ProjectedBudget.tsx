@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { RecurrentBill, Roommate, Expense, ExpenseCategory } from '../types';
 import { Wallet, TrendingDown, TrendingUp, Coins, Home, Zap, Tv, Heart, ShoppingBag, HelpCircle, ChevronRight } from 'lucide-react';
+import { inferCategoryFromName } from '../utils';
 
 interface ProjectedBudgetProps {
   bills: RecurrentBill[];
@@ -22,10 +23,9 @@ const CATEGORIES = [
 
 type CatKey = typeof CATEGORIES[number]['key'];
 
-function inferCategory(expCat?: ExpenseCategory): CatKey {
-  if (expCat && ['alquiler','servicio','membresia','auto','comida','limpieza','otros'].includes(expCat)) {
-    return expCat as CatKey;
-  }
+function inferCategory(expCat?: ExpenseCategory, title?: string): CatKey {
+  const cat = expCat && expCat !== 'otros' ? expCat : (title ? inferCategoryFromName(title) : 'otros');
+  if (['alquiler','servicio','membresia','auto','comida','limpieza','otros'].includes(cat)) return cat as CatKey;
   return 'otros';
 }
 
@@ -76,9 +76,9 @@ export default function ProjectedBudget({ bills, roommates, expenses, rentExchan
   // Group by expense category → one line per group
   const expGroupMap = new Map<string, { amount: number; cat: CatKey; count: number }>();
   monthExpenses.forEach(e => {
-    const key = e.category || 'otros';
     const soles = toSoles(e.amount, e.currency, e.exchangeRate || rate);
-    const cat = inferCategory(e.category);
+    const cat = inferCategory(e.category, e.title);
+    const key = cat;
     const prev = expGroupMap.get(key);
     if (prev) { prev.amount += soles; prev.count++; }
     else expGroupMap.set(key, { amount: soles, cat, count: 1 });
