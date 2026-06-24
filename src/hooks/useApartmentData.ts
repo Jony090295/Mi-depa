@@ -157,9 +157,9 @@ export function useApartmentData(user: User) {
         supabase.from('bill_history').select('*').eq('apartment_id', aptId).order('created_at', { ascending: false }),
         supabase.from('shopping_items').select('*').eq('apartment_id', aptId).order('created_at', { ascending: false }),
         supabase.from('settlements').select('*').eq('apartment_id', aptId).order('created_at', { ascending: false }),
-        supabase.from('forum_posts').select('*').eq('apartment_id', aptId).order('created_at', { ascending: false }),
+        supabase.from('forum_posts').select('*').order('created_at', { ascending: false }),
         supabase.from('forum_replies').select('*').order('created_at'),
-        supabase.from('trusted_services').select('*').eq('apartment_id', aptId).order('created_at', { ascending: false }),
+        supabase.from('trusted_services').select('*').order('created_at', { ascending: false }),
       ]);
 
       setRoommates((rmRows ?? []).map(rowToRoommate));
