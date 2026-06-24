@@ -9,34 +9,24 @@ interface ProjectedBudgetProps {
   rentExchangeRate: number;
 }
 
-// ---- Categories ----
+// ---- Categories — mapped 1:1 from app's ExpenseCategory ----
 const CATEGORIES = [
-  { key: 'Hogar',         label: 'Hogar y Alquiler',     color: '#6366f1', icon: Home,        bg: 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400' },
-  { key: 'Servicios',     label: 'Servicios Básicos',     color: '#ec4899', icon: Zap,         bg: 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400' },
-  { key: 'Suscripciones', label: 'Suscripciones',         color: '#10b981', icon: Tv,          bg: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400' },
-  { key: 'Salud',         label: 'Salud y Seguros',       color: '#3b82f6', icon: Heart,       bg: 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400' },
-  { key: 'Consumos',      label: 'Consumos',              color: '#f59e0b', icon: ShoppingBag, bg: 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400' },
-  { key: 'Otros',         label: 'Otros',                 color: '#a1a1aa', icon: HelpCircle,  bg: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500' },
+  { key: 'alquiler',  label: 'Alquiler',         color: '#6366f1', icon: Home,        },
+  { key: 'servicio',  label: 'Servicios',         color: '#ec4899', icon: Zap,         },
+  { key: 'membresia', label: 'Membresías',        color: '#10b981', icon: Tv,          },
+  { key: 'auto',      label: 'Auto / Transporte', color: '#3b82f6', icon: ShoppingBag, },
+  { key: 'comida',    label: 'Comida',            color: '#f59e0b', icon: ShoppingBag, },
+  { key: 'limpieza',  label: 'Limpieza / Hogar',  color: '#8b5cf6', icon: Home,        },
+  { key: 'otros',     label: 'Otros',             color: '#a1a1aa', icon: HelpCircle,  },
 ] as const;
 
 type CatKey = typeof CATEGORIES[number]['key'];
 
-function inferCategory(name: string, expCat?: ExpenseCategory): CatKey {
-  if (expCat) {
-    if (expCat === 'alquiler') return 'Hogar';
-    if (expCat === 'servicio') return 'Servicios';
-    if (expCat === 'membresia') return 'Suscripciones';
-    if (expCat === 'auto') return 'Consumos';
-    if (expCat === 'comida') return 'Consumos';
-    if (expCat === 'limpieza') return 'Otros';
+function inferCategory(expCat?: ExpenseCategory): CatKey {
+  if (expCat && ['alquiler','servicio','membresia','auto','comida','limpieza','otros'].includes(expCat)) {
+    return expCat as CatKey;
   }
-  const l = name.toLowerCase();
-  if (/alquiler|cochera|depa|cclp/.test(l)) return 'Hogar';
-  if (/agua|luz|gas|internet|cel|calidda|servicio/.test(l)) return 'Servicios';
-  if (/spotify|netflix|combo|disney|prime|hbo|apple|suscrip/.test(l)) return 'Suscripciones';
-  if (/seguro|onco|salud|colágeno|colage|médico|medico|clínica|clinica/.test(l)) return 'Salud';
-  if (/comida|super|mercado|gasolina|restaurante|delivery/.test(l)) return 'Consumos';
-  return 'Otros';
+  return 'otros';
 }
 
 function getCurrentMonthYear() {
@@ -81,7 +71,7 @@ export default function ProjectedBudget({ bills, roommates, expenses, rentExchan
     id: `bill-${b.id}`,
     name: b.name,
     amount: toSoles(b.amount, b.currency, rate),
-    category: inferCategory(b.name, b.category),
+    category: inferCategory(b.category),
     source: 'fijo',
   }));
 
@@ -101,7 +91,7 @@ export default function ProjectedBudget({ bills, roommates, expenses, rentExchan
     .forEach(e => {
       const key = e.category || 'otros';
       const soles = toSoles(e.amount, e.currency, e.exchangeRate || rate);
-      const cat = inferCategory(e.title, e.category);
+      const cat = inferCategory(e.category);
       const prev = expGroupMap.get(key);
       if (prev) { prev.amount += soles; prev.count++; }
       else expGroupMap.set(key, { amount: soles, cat, count: 1 });
@@ -304,11 +294,6 @@ export default function ProjectedBudget({ bills, roommates, expenses, rentExchan
                         {cat.items.map(item => (
                           <div key={item.id} className="flex justify-between items-center px-3 py-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/30">
                             <div className="flex items-center gap-2 min-w-0">
-                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase shrink-0 ${
-                                item.source === 'fijo'
-                                  ? 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-500'
-                                  : 'bg-amber-50 dark:bg-amber-950/30 text-amber-600'
-                              }`}>{item.source === 'fijo' ? 'Recurrente' : 'Gasto'}</span>
                               <span className="text-xs text-zinc-600 dark:text-zinc-400 truncate">{item.name}</span>
                               {item.count && item.count > 1 && (
                                 <span className="text-[9px] text-zinc-400 shrink-0">({item.count} gastos)</span>
