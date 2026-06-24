@@ -221,7 +221,7 @@ export default function RecurrentBillsTab({
       {/* Add/Edit sheet */}
       {editBill !== null && (
         <div className="fixed inset-0 bg-black/40 flex items-end justify-center z-50">
-          <div className="bg-white dark:bg-zinc-900 rounded-t-3xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-zinc-900 rounded-t-3xl w-full max-w-lg p-6 pb-32 space-y-4 max-h-[90vh] overflow-y-auto" style={{ paddingBottom: 'calc(7rem + env(safe-area-inset-bottom))' }}>
             <div className="flex items-center justify-between">
               <h3 className="font-black text-zinc-900 dark:text-zinc-100">
                 {editBill === 'new' ? 'Nuevo gasto recurrente' : 'Editar gasto recurrente'}
