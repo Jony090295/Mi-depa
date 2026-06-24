@@ -86,6 +86,8 @@ export interface ApartmentConfig {
   rentExchangeRate: number;
   maintenanceCost: number;
   inviteCode: string;
+  defaultSplitType: 'equitativo' | 'proporcional' | 'porcentaje';
+  defaultSplitPercentages: Record<string, number>;
 }
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
@@ -136,6 +138,8 @@ export function useApartmentData(user: User) {
           rentExchangeRate: apt.rent_exchange_rate,
           maintenanceCost: apt.maintenance,
           inviteCode: apt.invite_code ?? '',
+          defaultSplitType: apt.default_split_type ?? 'equitativo',
+          defaultSplitPercentages: apt.default_split_percentages ?? {},
         });
       }
 
@@ -192,7 +196,9 @@ export function useApartmentData(user: User) {
     if (config.rentCost !== undefined)         update.rent = config.rentCost;
     if (config.rentCurrency !== undefined)     update.rent_currency = config.rentCurrency;
     if (config.rentExchangeRate !== undefined) update.rent_exchange_rate = config.rentExchangeRate;
-    if (config.maintenanceCost !== undefined)  update.maintenance = config.maintenanceCost;
+    if (config.maintenanceCost !== undefined)        update.maintenance = config.maintenanceCost;
+    if (config.defaultSplitType !== undefined)       update.default_split_type = config.defaultSplitType;
+    if (config.defaultSplitPercentages !== undefined) update.default_split_percentages = config.defaultSplitPercentages;
     await supabase.from('apartments').update(update).eq('id', apartmentId);
     setAptConfig(prev => prev ? { ...prev, ...config } : prev);
   };

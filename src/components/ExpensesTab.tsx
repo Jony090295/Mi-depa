@@ -17,6 +17,8 @@ interface ExpensesTabProps {
   onClearPrefilledBillId?: () => void;
   settlementHistory?: SettlementRecord[];
   onAddSettlement?: (record: SettlementRecord) => void;
+  defaultSplitType?: SplitType;
+  defaultSplitPercentages?: Record<string, number>;
 }
 
 export default function ExpensesTab({
@@ -32,14 +34,18 @@ export default function ExpensesTab({
   onClearPrefilledBillId,
   settlementHistory = [],
   onAddSettlement,
+  defaultSplitType = 'equitativo',
+  defaultSplitPercentages = {},
 }: ExpensesTabProps) {
   const resolvedAllRoommates = allRoommates || roommates;
   const [title, setTitle] = useState('');
   const [amountInput, setAmountInput] = useState<number | ''>('');
   const [category, setCategory] = useState<ExpenseCategory>('comida');
   const [paidBy, setPaidBy] = useState(roommates[0]?.id || '');
-  const [splitType, setSplitType] = useState<SplitType>('equitativo');
-  const [customPercentages, setCustomPercentages] = useState<Record<string, string>>({});
+  const [splitType, setSplitType] = useState<SplitType>(defaultSplitType);
+  const [customPercentages, setCustomPercentages] = useState<Record<string, string>>(
+    () => Object.fromEntries(Object.entries(defaultSplitPercentages).map(([k, v]) => [k, String(v)]))
+  );
   const [successMsg, setSuccessMsg] = useState('');
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [currency, setCurrency] = useState<'PEN' | 'USD'>('PEN');
@@ -154,20 +160,16 @@ export default function ExpensesTab({
     setCategory('comida');
     setPaidBy(roommates[0]?.id || '');
     setDate(new Date().toISOString().split('T')[0]);
-    setSplitType('equitativo');
+    setSplitType(defaultSplitType);
     setCurrency('PEN');
     setExchangeRateInput(1);
     setReceiptImage(undefined);
     setAssociatedBillId('');
     setRecurrentBillMonth(currentMonthName);
-    if (roommates.length > 0) {
-      const defaultPercent = Math.round((100 / roommates.length) * 100) / 100;
-      const initialPerc: Record<string, string> = {};
-      roommates.forEach((r) => {
-        initialPerc[r.id] = String(defaultPercent);
-      });
-      setCustomPercentages(initialPerc);
-    }
+    const defaultPercs = Object.keys(defaultSplitPercentages).length > 0
+      ? Object.fromEntries(Object.entries(defaultSplitPercentages).map(([k, v]) => [k, String(v)]))
+      : (() => { const p: Record<string,string> = {}; const eq = Math.round((100/roommates.length)*100)/100; roommates.forEach(r => { p[r.id] = String(eq); }); return p; })();
+    setCustomPercentages(defaultPercs);
     setIsModalOpen(false);
   };
 
@@ -350,20 +352,16 @@ export default function ExpensesTab({
     setCategory('comida');
     setPaidBy(roommates[0]?.id || '');
     setDate(new Date().toISOString().split('T')[0]);
-    setSplitType('equitativo');
+    setSplitType(defaultSplitType);
     setCurrency('PEN');
     setExchangeRateInput(1);
     setReceiptImage(undefined);
     setAssociatedBillId('');
     setRecurrentBillMonth(currentMonthName);
-    if (roommates.length > 0) {
-      const defaultPercent = Math.round((100 / roommates.length) * 100) / 100;
-      const initialPerc: Record<string, string> = {};
-      roommates.forEach((r) => {
-         initialPerc[r.id] = String(defaultPercent);
-      });
-      setCustomPercentages(initialPerc);
-    }
+    const defaultPercs2 = Object.keys(defaultSplitPercentages).length > 0
+      ? Object.fromEntries(Object.entries(defaultSplitPercentages).map(([k, v]) => [k, String(v)]))
+      : (() => { const p: Record<string,string> = {}; const eq = Math.round((100/roommates.length)*100)/100; roommates.forEach(r => { p[r.id] = String(eq); }); return p; })();
+    setCustomPercentages(defaultPercs2);
     setIsModalOpen(false);
     setTimeout(() => setSuccessMsg(''), 3000);
   };

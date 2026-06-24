@@ -96,6 +96,8 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
   const [homeRentCurrency, setHomeRentCurrency]   = useState<'PEN'|'USD'>('PEN');
   const [homeRentExRate, setHomeRentExRate]        = useState(3.80);
   const [homeMaintenanceCost, setHomeMaintenanceCost] = useState(0);
+  const [homeDefaultSplit, setHomeDefaultSplit] = useState<'equitativo'|'proporcional'|'porcentaje'>('equitativo');
+  const [homeDefaultPercs, setHomeDefaultPercs] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (aptConfig) {
@@ -105,6 +107,8 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
       setHomeRentCurrency(aptConfig.rentCurrency);
       setHomeRentExRate(aptConfig.rentExchangeRate);
       setHomeMaintenanceCost(aptConfig.maintenanceCost);
+      setHomeDefaultSplit(aptConfig.defaultSplitType ?? 'equitativo');
+      setHomeDefaultPercs(Object.fromEntries(Object.entries(aptConfig.defaultSplitPercentages ?? {}).map(([k,v]) => [k, String(v)])));
     }
   }, [aptConfig?.id]);
 
@@ -207,7 +211,8 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     name: string, rent: number, currency: 'PEN' | 'USD' = 'PEN',
     exchangeRate: number = 3.80, maintenance: number = 0, address: string = ''
   ) => {
-    await updateApartmentConfig({ name, address, rentCost: rent, rentCurrency: currency, rentExchangeRate: exchangeRate, maintenanceCost: maintenance });
+    const defaultSplitPercentages = Object.fromEntries(Object.entries(homeDefaultPercs).map(([k,v]) => [k, parseFloat(v as string)||0]));
+    await updateApartmentConfig({ name, address, rentCost: rent, rentCurrency: currency, rentExchangeRate: exchangeRate, maintenanceCost: maintenance, defaultSplitType: homeDefaultSplit, defaultSplitPercentages });
 
     // Sync matching bills
     const rentBill = bills.find(b => b.name.toLowerCase().includes('alquiler'));
@@ -954,6 +959,39 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                         <p className="text-[11px] text-zinc-400 mt-1">Tu roommate abre el link, crea su cuenta y queda unido al depa.</p>
                       </div>
                     )}
+                    {/* Default split */}
+                    <div>
+                      <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide">Cómo dividen los gastos por defecto</label>
+                      <div className="mt-2 flex gap-2 flex-wrap">
+                        {(['equitativo','proporcional','porcentaje'] as const).map(opt => (
+                          <button key={opt} type="button" onClick={() => setHomeDefaultSplit(opt)}
+                            className={`h-8 px-3 rounded-xl text-[12px] font-semibold transition active:scale-95 cursor-pointer ${homeDefaultSplit === opt ? 'bg-indigo-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'}`}>
+                            {opt === 'equitativo' ? 'Equitativo' : opt === 'proporcional' ? 'Por ingresos' : '% personalizado'}
+                          </button>
+                        ))}
+                      </div>
+                      {homeDefaultSplit === 'porcentaje' && (
+                        <div className="mt-3 space-y-2">
+                          {roommates.map(r => (
+                            <div key={r.id} className="flex items-center gap-3">
+                              <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-[10px] font-bold shrink-0" style={{ backgroundColor: r.color }}>{r.name.charAt(0)}</div>
+                              <span className="flex-1 text-[13px] text-zinc-700 dark:text-zinc-300">{r.name}</span>
+                              <div className="relative w-20">
+                                <input type="number" inputMode="decimal" min={0} max={100}
+                                  value={homeDefaultPercs[r.id] ?? ''}
+                                  onChange={e => setHomeDefaultPercs(prev => ({ ...prev, [r.id]: e.target.value }))}
+                                  className="w-full h-9 pr-7 pl-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[13px] font-semibold text-right focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 text-[12px] pointer-events-none">%</span>
+                              </div>
+                            </div>
+                          ))}
+                          <p className={`text-[11px] font-semibold ${Math.abs(roommates.reduce((s,r) => s+(parseFloat(homeDefaultPercs[r.id])||0),0)-100)<0.1?'text-emerald-500':'text-rose-500'}`}>
+                            Total: {roommates.reduce((s,r) => s+(parseFloat(homeDefaultPercs[r.id])||0),0).toFixed(1)}%
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
                     <button type="button" onClick={() => {
                       handleUpdateApartmentNameAndRent(homeApartmentName, homeRentCost, homeRentCurrency, homeRentExRate, homeMaintenanceCost, homeAddress);
                       setHomeConfigOpen(false);
@@ -983,6 +1021,8 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
             onClearPrefilledBillId={() => setPrefilledBillId('')}
             settlementHistory={settlementHistory}
             onAddSettlement={handleAddSettlement}
+            defaultSplitType={aptConfig?.defaultSplitType ?? 'equitativo'}
+            defaultSplitPercentages={aptConfig?.defaultSplitPercentages ?? {}}
           />
         )}
 
