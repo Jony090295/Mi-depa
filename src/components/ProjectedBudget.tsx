@@ -66,37 +66,24 @@ export default function ProjectedBudget({ bills, roommates, expenses, rentExchan
   // ---- Ingresos ----
   const totalIncome = roommates.reduce((s, r) => s + r.income, 0);
 
-  // ---- Gastos fijos (bills) ----
-  const fixedItems: LineItem[] = bills.map(b => ({
-    id: `bill-${b.id}`,
-    name: b.name,
-    amount: toSoles(b.amount, b.currency, rate),
-    category: inferCategory(b.category),
-    source: 'fijo',
-  }));
-
-  // ---- Gastos variables del mes actual (expenses) ----
+  // ---- Solo gastos reales registrados este mes ----
   const currentMY = getCurrentMonthYear();
   const monthExpenses = expenses.filter(e => {
     const d = new Date(e.date);
     return `${d.getMonth() + 1}-${d.getFullYear()}` === currentMY;
   });
 
-  // De-duplicate: si un gasto ya viene de un bill (associatedExpenseId), no lo contar dos veces
-  const billLinkedIds = new Set(bills.map(b => b.associatedExpenseId).filter(Boolean));
-  // Group variable expenses by their expense category → one line per group
+  // Group by expense category → one line per group
   const expGroupMap = new Map<string, { amount: number; cat: CatKey; count: number }>();
-  monthExpenses
-    .filter(e => !billLinkedIds.has(e.id))
-    .forEach(e => {
-      const key = e.category || 'otros';
-      const soles = toSoles(e.amount, e.currency, e.exchangeRate || rate);
-      const cat = inferCategory(e.category);
-      const prev = expGroupMap.get(key);
-      if (prev) { prev.amount += soles; prev.count++; }
-      else expGroupMap.set(key, { amount: soles, cat, count: 1 });
-    });
-  const variableItems: LineItem[] = Array.from(expGroupMap.entries()).map(([key, val]) => ({
+  monthExpenses.forEach(e => {
+    const key = e.category || 'otros';
+    const soles = toSoles(e.amount, e.currency, e.exchangeRate || rate);
+    const cat = inferCategory(e.category);
+    const prev = expGroupMap.get(key);
+    if (prev) { prev.amount += soles; prev.count++; }
+    else expGroupMap.set(key, { amount: soles, cat, count: 1 });
+  });
+  const allItems: LineItem[] = Array.from(expGroupMap.entries()).map(([key, val]) => ({
     id: `exp-group-${key}`,
     name: EXP_CATEGORY_LABELS[key] || 'Otros gastos',
     amount: val.amount,
@@ -104,8 +91,6 @@ export default function ProjectedBudget({ bills, roommates, expenses, rentExchan
     source: 'gasto',
     count: val.count,
   }));
-
-  const allItems = [...fixedItems, ...variableItems];
   const totalGastos = allItems.reduce((s, i) => s + i.amount, 0);
   const saldo = totalIncome - totalGastos;
 
@@ -160,7 +145,7 @@ export default function ProjectedBudget({ bills, roommates, expenses, rentExchan
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[12px] font-semibold text-zinc-400 uppercase tracking-wide">Gastos</p>
-            <p className="text-[11px] text-zinc-400">{fixedItems.length} fijos · {variableItems.length} variables</p>
+            <p className="text-[11px] text-zinc-400">{monthExpenses.length} gastos este mes</p>
           </div>
           <p className="text-[18px] font-black font-mono text-rose-600 dark:text-rose-400 tabular-nums shrink-0">
             S/{totalGastos.toLocaleString('en-US', { maximumFractionDigits: 0 })}
