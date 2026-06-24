@@ -740,27 +740,6 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
               <div className="space-y-1.5">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 px-1">Pendiente</p>
 
-                {pendingBillsCount > 0 && (
-                  <button onClick={() => setActiveTab('bills')}
-                    className="w-full flex items-center gap-3 px-4 py-3 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 active:scale-[0.98] transition text-left shadow-sm">
-                    <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/40 flex items-center justify-center shrink-0">
-                      <Clock size={15} className="text-rose-500" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-semibold text-zinc-900 dark:text-zinc-100">{pendingBillsCount} {pendingBillsCount === 1 ? 'gasto fijo' : 'gastos fijos'} por pagar</p>
-                      <p className="text-[11px] text-zinc-400">S/ {pendingBillsAmount.toFixed(0)} pendiente este mes</p>
-                    </div>
-                    <ArrowRight size={14} className="text-zinc-300 dark:text-zinc-600 shrink-0" />
-                  </button>
-                )}
-
-                {pendingBillsCount === 0 && (
-                  <div className="w-full flex items-center gap-3 px-4 py-3 bg-emerald-50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-100 dark:border-emerald-900/30">
-                    <Check size={15} className="text-emerald-500 shrink-0" />
-                    <p className="text-[13px] font-semibold text-emerald-700 dark:text-emerald-300">Todos los fijos pagados</p>
-                  </div>
-                )}
-
                 {itemsMissingCount > 0 && (
                   <button onClick={() => setActiveTab('shopping')}
                     className="w-full flex items-center gap-3 px-4 py-3 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 active:scale-[0.98] transition text-left shadow-sm">
