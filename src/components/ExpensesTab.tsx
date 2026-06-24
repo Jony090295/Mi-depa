@@ -391,7 +391,7 @@ export default function ExpensesTab({
   }
 
   // Group all expenses by month for the history view (skip fake settlement expenses)
-  const filteredExpenses = expenses.filter(e => !e.title.startsWith('💵 Liquidación:'));
+  const filteredExpenses = expenses.filter(e => !e.title.startsWith('💵 Liquidación:') && !e.title.startsWith('[Pago Recurrente]'));
   const groupedExpenses: { month: string; items: Expense[] }[] = [];
   filteredExpenses.forEach((expense) => {
     const monthStr = getMonthYearStringFromDate(expense.date || '') || 'Sin periodo';
