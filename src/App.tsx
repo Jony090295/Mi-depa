@@ -629,7 +629,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
 
   const tabMeta: Record<string, { label: string; sub?: string }> = {
     budget:           { label: apartmentName,    sub: `${roommates.length} roommates` },
-    bills:            { label: 'Gastos Fijos',   sub: `${pendingBillsCount} por pagar` },
+    bills:            { label: 'Recurrentes',   sub: `${pendingBillsCount} por pagar` },
     expenses:         { label: 'Gastos',          sub: 'Gastos compartidos' },
     projected_budget: { label: 'Presupuesto',    sub: 'Proyección mensual' },
     shopping:         { label: 'Compras',         sub: `${itemsMissingCount} pendientes` },
