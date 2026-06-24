@@ -170,7 +170,7 @@ export default function RecurrentBillsTab({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-500 px-2 py-0.5 rounded-full font-medium">
-                      {CATEGORY_LABELS[bill.category || 'otros'] || bill.category}
+                      {CATEGORY_LABELS[bill.category || 'otros']?.label || bill.category}
                     </span>
                     {bill.currency === 'USD' && (
                       <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-600 px-2 py-0.5 rounded-full font-medium">USD</span>
