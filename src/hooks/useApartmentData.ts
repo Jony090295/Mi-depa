@@ -318,7 +318,7 @@ export function useApartmentData(user: User) {
 
   const addShoppingItem = async (item: Omit<ShoppingItem, 'id'>) => {
     if (!apartmentId) return;
-    const id = `sh-${crypto.randomUUID()}`;
+    const id = crypto.randomUUID();
     await supabase.from('shopping_items').insert({
       id, apartment_id: apartmentId,
       name: item.name, quantity: item.quantity,
