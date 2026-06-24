@@ -9,6 +9,7 @@ interface ShoppingTabProps {
   onRemoveItem: (id: string) => void;
   onClearList: () => void;
   onChatResponse: (aiMsg: string, actions: any[]) => void;
+  currentUserName?: string;
 }
 
 const SpeechRecognition =
@@ -97,6 +98,7 @@ export default function ShoppingTab({
   onToggleItem,
   onRemoveItem,
   onClearList,
+  currentUserName = 'Yo',
 }: ShoppingTabProps) {
   const [inputValue, setInputValue] = useState('');
   const [showCompleted, setShowCompleted] = useState(false);
@@ -118,7 +120,7 @@ export default function ShoppingTab({
       if (a.type === 'clear') { onClearList(); showFeedback('Lista limpiada.'); return; }
       if (!a.name) continue;
       if (a.type === 'add') {
-        onAddItem({ name: a.name, quantity: a.quantity || '1 u', checked: false, addedBy: 'Voz' });
+        onAddItem({ name: a.name, quantity: a.quantity || '1 u', checked: false, addedBy: currentUserName });
         added.push(a.name);
       } else if (a.type === 'check') {
         const nl = a.name.toLowerCase();
@@ -179,7 +181,7 @@ export default function ShoppingTab({
     const val = inputValue.trim();
     if (!val) return;
     const { name, quantity } = extractSingleItem(val);
-    onAddItem({ name, quantity, checked: false, addedBy: 'Yo' });
+    onAddItem({ name, quantity, checked: false, addedBy: currentUserName });
     setInputValue('');
     inputRef.current?.focus();
   };

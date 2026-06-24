@@ -1041,6 +1041,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
             onRemoveItem={handleRemoveShoppingItem}
             onClearList={handleClearShoppingList}
             onChatResponse={() => {}}
+            currentUserName={roommates.find(r => r.userId === user.id)?.name ?? 'Yo'}
           />
         )}
 

@@ -53,6 +53,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode }: Pro
         income: 0,
         color: '#6366f1',
         sort_order: 0,
+        user_id: user.id,
       });
 
       setCreated({ code: apt.invite_code });
@@ -103,6 +104,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode }: Pro
           income: 0,
           color: '#ec4899',
           sort_order: 99,
+          user_id: user.id,
         });
       }
 

@@ -15,7 +15,7 @@ import {
 // ─── DB → App type mappers ───────────────────────────────────────────────────
 
 function rowToRoommate(r: any): Roommate {
-  return { id: r.id, name: r.name, income: r.income, color: r.color };
+  return { id: r.id, name: r.name, income: r.income, color: r.color, userId: r.user_id ?? undefined };
 }
 
 function rowToExpense(r: any): Expense {
@@ -198,6 +198,7 @@ export function useApartmentData(user: User) {
     const rows = updated.map((r, i) => ({
       id: r.id, apartment_id: apartmentId,
       name: r.name, income: r.income, color: r.color, sort_order: i,
+      user_id: r.userId ?? null,
     }));
     await supabase.from('roommates').upsert(rows);
 

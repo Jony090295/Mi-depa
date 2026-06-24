@@ -3,6 +3,7 @@ export interface Roommate {
   name: string;
   income: number;
   color: string;
+  userId?: string;
 }
 
 export interface Apartment {
