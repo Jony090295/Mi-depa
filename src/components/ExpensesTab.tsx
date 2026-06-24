@@ -694,7 +694,7 @@ export default function ExpensesTab({
                 {bills.length > 0 && (
                   <div id="expense-fixed-bill-picker" className="border border-dashed border-zinc-300 dark:border-zinc-700 rounded-2xl p-4 space-y-3">
                     <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
-                      Vincular a recurrente (opcional)
+                      Gasto recurrente (opcional)
                     </label>
                     <select
                       id="select-fixed-bill-dropdown"
