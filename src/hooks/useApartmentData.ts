@@ -9,7 +9,7 @@ import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import {
   Roommate, Expense, RecurrentBill, RecurrentBillHistory,
-  ShoppingItem, ForumPost, ForumReply, SettlementRecord,
+  ShoppingItem, ForumPost, ForumReply, SettlementRecord, TrustedService,
 } from '../types';
 
 // ─── DB → App type mappers ───────────────────────────────────────────────────
@@ -99,6 +99,7 @@ export function useApartmentData(user: User) {
   const [billHistory, setBillHistory]     = useState<RecurrentBillHistory[]>([]);
   const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>([]);
   const [posts, setPosts]                 = useState<ForumPost[]>([]);
+  const [trustedServices, setTrustedServices] = useState<TrustedService[]>([]);
   const [settlementHistory, setSettlementHistory] = useState<SettlementRecord[]>([]);
   const [loading, setLoading]             = useState(true);
   const [noApartment, setNoApartment]     = useState(false);
@@ -148,6 +149,7 @@ export function useApartmentData(user: User) {
         { data: settleRows },
         { data: postRows },
         { data: replyRows },
+        { data: svcRows },
       ] = await Promise.all([
         supabase.from('roommates').select('*').eq('apartment_id', aptId).order('sort_order'),
         supabase.from('expenses').select('*').eq('apartment_id', aptId).order('created_at', { ascending: false }),
@@ -157,6 +159,7 @@ export function useApartmentData(user: User) {
         supabase.from('settlements').select('*').eq('apartment_id', aptId).order('created_at', { ascending: false }),
         supabase.from('forum_posts').select('*').eq('apartment_id', aptId).order('created_at', { ascending: false }),
         supabase.from('forum_replies').select('*').order('created_at'),
+        supabase.from('trusted_services').select('*').eq('apartment_id', aptId).order('created_at', { ascending: false }),
       ]);
 
       setRoommates((rmRows ?? []).map(rowToRoommate));
@@ -166,6 +169,10 @@ export function useApartmentData(user: User) {
       setShoppingItems((shopRows ?? []).map(rowToShoppingItem));
       setSettlementHistory((settleRows ?? []).map(rowToSettlement));
       setPosts((postRows ?? []).map(p => rowToPost(p, replyRows ?? [])));
+      setTrustedServices((svcRows ?? []).map((r: any) => ({
+        id: r.id, name: r.name, category: r.category, phone: r.phone,
+        rating: r.rating, description: r.description, recommendedBy: r.recommended_by,
+      })));
     } catch (err) {
       console.error('Error loading apartment data:', err);
     } finally {
@@ -370,6 +377,16 @@ export function useApartmentData(user: User) {
     setPosts(prev => [post, ...prev]);
   };
 
+  const addTrustedService = async (svc: TrustedService) => {
+    if (!apartmentId) return;
+    const { error } = await supabase.from('trusted_services').insert({
+      id: crypto.randomUUID(), apartment_id: apartmentId,
+      name: svc.name, category: svc.category, phone: svc.phone,
+      rating: svc.rating, description: svc.description, recommended_by: svc.recommendedBy,
+    });
+    if (!error) setTrustedServices(prev => [svc, ...prev]);
+  };
+
   const addReply = async (postId: string, reply: ForumReply) => {
     await supabase.from('forum_replies').insert({
       id: reply.id, post_id: postId,
@@ -391,6 +408,7 @@ export function useApartmentData(user: User) {
     billHistory,
     shoppingItems,
     posts,
+    trustedServices,
     settlementHistory,
     // setters needed by App.tsx handlers that do their own logic
     setExpenses,
@@ -404,7 +422,7 @@ export function useApartmentData(user: User) {
     addBillHistory, removeBillHistory, updateBillHistoryEntry,
     addShoppingItem, toggleShoppingItem, removeShoppingItem, clearShoppingList,
     addSettlement,
-    addPost, addReply,
+    addPost, addReply, addTrustedService,
     reload: loadAll,
   };
 }

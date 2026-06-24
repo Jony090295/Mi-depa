@@ -53,14 +53,14 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
   const {
     loading: dataLoading, noApartment, reload,
     aptConfig, roommates, expenses, bills, billHistory,
-    shoppingItems, posts, settlementHistory,
+    shoppingItems, posts, trustedServices, settlementHistory,
     setExpenses, setBills, setBillHistory,
     updateApartmentConfig, updateRoommates,
     addExpense, updateExpense, removeExpense,
     addBill, updateBill, removeBill,
     addBillHistory, removeBillHistory, updateBillHistoryEntry,
     addShoppingItem, toggleShoppingItem, removeShoppingItem, clearShoppingList,
-    addSettlement, addPost, addReply,
+    addSettlement, addPost, addReply, addTrustedService,
   } = data;
 
   // ── Derived config values ─────────────────────────────────────────────────
@@ -1029,6 +1029,8 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
             posts={posts}
             onAddPost={handleAddPost}
             onAddReply={handleAddReply}
+            trustedServices={trustedServices}
+            onAddTrustedService={addTrustedService}
           />
         )}
 

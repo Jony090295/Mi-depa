@@ -6,6 +6,8 @@ interface CommunityTabProps {
   posts: ForumPost[];
   onAddPost: (post: ForumPost) => void;
   onAddReply: (postId: string, reply: ForumReply) => void;
+  trustedServices: TrustedService[];
+  onAddTrustedService: (svc: TrustedService) => void;
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -31,12 +33,10 @@ const TYPE_META = {
 
 // ── main component ───────────────────────────────────────────────────────────
 
-export default function CommunityTab({ posts, onAddPost, onAddReply }: CommunityTabProps) {
+export default function CommunityTab({ posts, onAddPost, onAddReply, trustedServices: services, onAddTrustedService }: CommunityTabProps) {
   const [section, setSection] = useState<'directory' | 'forum'>('directory');
 
   // ── Directory state ──────────────────────────────────────────────────────
-  const [services, setServices]           = useState<TrustedService[]>([]);
-  const [loadingDir, setLoadingDir]       = useState(true);
   const [searchQuery, setSearchQuery]     = useState('');
   const [selectedCat, setSelectedCat]     = useState('Todos');
   const [showAddService, setShowAddService] = useState(false);
@@ -60,16 +60,6 @@ export default function CommunityTab({ posts, onAddPost, onAddReply }: Community
   const [postAuthor, setPostAuthor]     = useState('');
   const [postType, setPostType]         = useState<'tip' | 'pregunta'>('tip');
 
-  // ── Fetch directory ──────────────────────────────────────────────────────
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch('/api/trusted-services');
-        if (res.ok) setServices(await res.json());
-      } catch { /* offline */ }
-      finally { setLoadingDir(false); }
-    })();
-  }, []);
 
   // ── Body scroll lock for sheets ──────────────────────────────────────────
   useEffect(() => {
@@ -83,25 +73,11 @@ export default function CommunityTab({ posts, onAddPost, onAddReply }: Community
     e.preventDefault();
     if (!svcName.trim() || !svcPhone.trim() || !svcReview.trim()) return;
     const local: TrustedService = {
-      id: `svc-${Date.now()}`, name: svcName.trim(), category: svcCategory,
+      id: crypto.randomUUID(), name: svcName.trim(), category: svcCategory,
       phone: svcPhone.trim(), rating: svcRating, description: svcReview.trim(),
       recommendedBy: svcRecommendedBy.trim() || 'Vecino de Mi Depa',
     };
-    try {
-      const res = await fetch('/api/trusted-services', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(local),
-      });
-      if (res.ok) {
-        const created = await res.json();
-        setServices(prev => [created, ...prev]);
-      } else {
-        setServices(prev => [local, ...prev]);
-      }
-    } catch {
-      setServices(prev => [local, ...prev]);
-    }
+    onAddTrustedService(local);
     setSvcName(''); setSvcPhone(''); setSvcReview(''); setSvcRecommendedBy(''); setSvcRating(5);
     setShowAddService(false);
   };
@@ -176,9 +152,7 @@ export default function CommunityTab({ posts, onAddPost, onAddReply }: Community
           </div>
 
           {/* Cards */}
-          {loadingDir ? (
-            <div className="py-10 text-center text-zinc-400 text-[13px]">Cargando directorio…</div>
-          ) : filteredServices.length === 0 ? (
+          {filteredServices.length === 0 ? (
             <div className="py-12 flex flex-col items-center gap-2 text-zinc-400">
               <span className="text-3xl">🔍</span>
               <p className="text-[13px] font-semibold">Sin resultados</p>
