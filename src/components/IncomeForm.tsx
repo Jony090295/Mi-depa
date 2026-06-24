@@ -68,7 +68,7 @@ export default function IncomeForm({
     const randomColor = colors[localRoommates.length % colors.length];
 
     const newR: Roommate = {
-      id: `r-${Date.now()}`,
+      id: crypto.randomUUID(),
       name: newRoommateName.trim(),
       income: Number(newRoommateIncome) || 0,
       color: randomColor,

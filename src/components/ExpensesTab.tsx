@@ -104,7 +104,7 @@ export default function ExpensesTab({
   const handleSettle = (sett: any) => {
     if (!onAddSettlement) return;
     const record: SettlementRecord = {
-      id: `settle-${Date.now()}`,
+      id: crypto.randomUUID(),
       fromId: sett.from,
       toId: sett.to,
       amount: parseFloat(sett.amount.toFixed(2)),
@@ -312,7 +312,7 @@ export default function ExpensesTab({
       setSuccessMsg('¡Gasto actualizado con éxito!');
     } else {
       const newExpense: Expense = {
-        id: `exp-${Date.now()}`,
+        id: crypto.randomUUID(),
         title: title.trim(),
         amount,
         category,

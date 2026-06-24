@@ -106,6 +106,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode }: Pro
         });
       }
 
+      sessionStorage.removeItem('pendingJoinCode');
       onReady();
     } catch (err: any) {
       setError(err.message || 'Error al unirse al depa.');

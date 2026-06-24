@@ -39,7 +39,7 @@ export default function ForumTab({
     }
 
     const newPost: ForumPost = {
-      id: `post-${Date.now()}`,
+      id: crypto.randomUUID(),
       author: newAuthor.trim(),
       title: newTitle.trim(),
       content: newContent.trim(),
@@ -75,7 +75,7 @@ export default function ForumTab({
     }
 
     const newReply: ForumReply = {
-      id: `rep-${Date.now()}`,
+      id: crypto.randomUUID(),
       author: inputs.author.trim(),
       content: inputs.content.trim(),
       createdAt: new Date().toISOString(),

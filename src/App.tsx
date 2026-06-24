@@ -26,7 +26,11 @@ import {
 
 export default function AppShell() {
   const { session, user, loading } = useAuth();
-  const joinCode = new URLSearchParams(window.location.search).get('join') ?? undefined;
+
+  // Persist join code across auth redirects
+  const urlJoinCode = new URLSearchParams(window.location.search).get('join');
+  if (urlJoinCode) sessionStorage.setItem('pendingJoinCode', urlJoinCode);
+  const joinCode = urlJoinCode ?? sessionStorage.getItem('pendingJoinCode') ?? undefined;
 
   if (loading) {
     return (
@@ -36,9 +40,9 @@ export default function AppShell() {
     );
   }
 
-  if (!session || !user) return <AuthScreen joinCode={joinCode} />;
+  if (!session || !user) return <AuthScreen joinCode={joinCode || undefined} />;
 
-  return <AppMain user={user} joinCode={joinCode} />;
+  return <AppMain user={user} joinCode={joinCode || undefined} />;
 }
 
 // ─── Main app ────────────────────────────────────────────────────────────────

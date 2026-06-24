@@ -239,7 +239,7 @@ export default function RecurrentBillsTab({
 
     if (editBill === 'new') {
       onAddBill({
-        id:          `b-${crypto.randomUUID()}`,
+        id:          crypto.randomUUID(),
         name:        editForm.name,
         amount,
         dueDate:     editForm.dueDate,

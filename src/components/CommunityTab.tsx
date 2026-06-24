@@ -110,7 +110,7 @@ export default function CommunityTab({ posts, onAddPost, onAddReply }: Community
     e.preventDefault();
     if (!postTitle.trim() || !postContent.trim() || !postAuthor.trim()) return;
     onAddPost({
-      id: `post-${Date.now()}`, author: postAuthor.trim(), title: postTitle.trim(),
+      id: crypto.randomUUID(), author: postAuthor.trim(), title: postTitle.trim(),
       content: postContent.trim(), type: postType,
       createdAt: new Date().toISOString(), replies: [],
     });
@@ -123,7 +123,7 @@ export default function CommunityTab({ posts, onAddPost, onAddReply }: Community
     const author = replyAuthor[postId]?.trim();
     if (!text || !author) return;
     onAddReply(postId, {
-      id: `rep-${Date.now()}`, author, content: text, createdAt: new Date().toISOString(),
+      id: crypto.randomUUID(), author, content: text, createdAt: new Date().toISOString(),
     });
     setReplyText(p => ({ ...p, [postId]: '' }));
     setReplyAuthor(p => ({ ...p, [postId]: '' }));
