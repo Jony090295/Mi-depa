@@ -278,39 +278,43 @@ export default function ShoppingTab({
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-3">
+                    <div className="flex gap-3">
                       <button type="button" onClick={() => onToggleItem(item.id)}
-                        className="w-6 h-6 rounded-full border-2 border-zinc-300 dark:border-zinc-600 hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 flex items-center justify-center transition shrink-0 cursor-pointer" />
+                        className="mt-0.5 w-6 h-6 rounded-full border-2 border-zinc-300 dark:border-zinc-600 hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 flex items-center justify-center transition shrink-0 cursor-pointer" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-[14px] font-medium text-zinc-900 dark:text-zinc-100 truncate">{item.name}</p>
-                      </div>
-                      {/* Quantity stepper */}
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button type="button" onClick={() => stepQty(item, -1)}
-                          className="w-7 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 flex items-center justify-center text-[16px] font-bold hover:bg-zinc-200 dark:hover:bg-zinc-700 transition cursor-pointer leading-none">
-                          −
-                        </button>
-                        <span className="min-w-[2.5rem] text-center text-[13px] font-medium text-zinc-700 dark:text-zinc-300">{item.quantity}</span>
-                        <button type="button" onClick={() => stepQty(item, 1)}
-                          className="w-7 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 flex items-center justify-center text-[16px] font-bold hover:bg-zinc-200 dark:hover:bg-zinc-700 transition cursor-pointer leading-none">
-                          +
-                        </button>
-                      </div>
-                      {item.addedBy && item.addedBy !== 'Yo' && (
-                        <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
-                          style={{ backgroundColor: getRoommateColor(item.addedBy) }}
-                          title={item.addedBy}>
-                          {item.addedBy.charAt(0)}
+                        <p className="text-[14px] font-medium text-zinc-900 dark:text-zinc-100">{item.name}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          {/* Quantity stepper */}
+                          <div className="flex items-center gap-1">
+                            <button type="button" onClick={() => stepQty(item, -1)}
+                              className="w-6 h-6 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 flex items-center justify-center text-[14px] font-bold hover:bg-zinc-200 dark:hover:bg-zinc-700 transition cursor-pointer leading-none">
+                              −
+                            </button>
+                            <span className="min-w-[2.5rem] text-center text-[12px] font-medium text-zinc-500 dark:text-zinc-400">{item.quantity}</span>
+                            <button type="button" onClick={() => stepQty(item, 1)}
+                              className="w-6 h-6 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 flex items-center justify-center text-[14px] font-bold hover:bg-zinc-200 dark:hover:bg-zinc-700 transition cursor-pointer leading-none">
+                              +
+                            </button>
+                          </div>
+                          {item.addedBy && item.addedBy !== 'Yo' && (
+                            <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
+                              style={{ backgroundColor: getRoommateColor(item.addedBy) }}
+                              title={item.addedBy}>
+                              {item.addedBy.charAt(0)}
+                            </div>
+                          )}
                         </div>
-                      )}
-                      <button type="button" onClick={() => startEdit(item)}
-                        className="w-7 h-7 flex items-center justify-center text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 transition shrink-0 cursor-pointer">
-                        <Pencil size={13} />
-                      </button>
-                      <button type="button" onClick={() => onRemoveItem(item.id)}
-                        className="w-7 h-7 flex items-center justify-center text-zinc-300 dark:text-zinc-600 hover:text-rose-500 transition shrink-0 cursor-pointer">
-                        <Trash2 size={14} />
-                      </button>
+                      </div>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <button type="button" onClick={() => startEdit(item)}
+                          className="w-8 h-8 flex items-center justify-center text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 transition cursor-pointer">
+                          <Pencil size={13} />
+                        </button>
+                        <button type="button" onClick={() => onRemoveItem(item.id)}
+                          className="w-8 h-8 flex items-center justify-center text-zinc-300 dark:text-zinc-600 hover:text-rose-500 transition cursor-pointer">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
