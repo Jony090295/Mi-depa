@@ -641,7 +641,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
   const navTabs = [
     { id: 'budget',   icon: <Home size={20} />,        label: 'Inicio',    env: 'depa' as const },
     { id: 'bills',    icon: <Clock size={20} />,        label: 'Recurrentes', env: 'depa' as const },
-    { id: 'expenses', icon: <Plus size={24} />,         label: 'Nuevo gasto', env: 'depa' as const, primary: true },
+    { id: 'expenses', icon: <Plus size={24} />,         label: 'Gasto', env: 'depa' as const, primary: true },
     { id: 'shopping', icon: <ShoppingCart size={20} />, label: 'Compras',   env: 'depa' as const },
     { id: 'forum',    icon: <Users size={20} />,        label: 'Comunidad', env: 'comunidad' as const },
   ];
