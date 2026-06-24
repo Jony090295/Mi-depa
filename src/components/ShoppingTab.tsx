@@ -1,12 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { ShoppingItem } from '../types';
-import { Plus, Check, Trash2, Mic, MicOff } from 'lucide-react';
+import { Plus, Check, Trash2, Mic, MicOff, Pencil, X } from 'lucide-react';
 
 interface ShoppingTabProps {
   items: ShoppingItem[];
   onAddItem: (item: Omit<ShoppingItem, 'id'>) => void;
   onToggleItem: (id: string) => void;
   onRemoveItem: (id: string) => void;
+  onUpdateItem: (id: string, updates: Partial<ShoppingItem>) => void;
   onClearList: () => void;
   onChatResponse: (aiMsg: string, actions: any[]) => void;
   currentUserName?: string;
@@ -92,11 +93,18 @@ function getRoommateColor(name: string) {
   return ROOMMATE_COLORS[name];
 }
 
+function parseQty(q: string): { num: number; unit: string } {
+  const m = q.trim().match(/^([\d.,]+)\s*(.*)/);
+  if (m) return { num: parseFloat(m[1].replace(',', '.')), unit: m[2].trim() };
+  return { num: 1, unit: q.trim() };
+}
+
 export default function ShoppingTab({
   items,
   onAddItem,
   onToggleItem,
   onRemoveItem,
+  onUpdateItem,
   onClearList,
   currentUserName = 'Yo',
 }: ShoppingTabProps) {
@@ -105,8 +113,29 @@ export default function ShoppingTab({
   const [isListening, setIsListening] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [feedbackError, setFeedbackError] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editQty, setEditQty] = useState('');
   const recognitionRef = useRef<any>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const startEdit = (item: ShoppingItem) => {
+    setEditingId(item.id);
+    setEditName(item.name);
+    setEditQty(item.quantity);
+  };
+
+  const saveEdit = (id: string) => {
+    if (editName.trim()) onUpdateItem(id, { name: editName.trim(), quantity: editQty.trim() || '1 u' });
+    setEditingId(null);
+  };
+
+  const stepQty = (item: ShoppingItem, delta: number) => {
+    const { num, unit } = parseQty(item.quantity);
+    const next = Math.max(1, Math.round((num + delta) * 10) / 10);
+    const newQty = unit ? `${next} ${unit}` : `${next}`;
+    onUpdateItem(item.id, { quantity: newQty });
+  };
 
   const showFeedback = (msg: string, isError = false) => {
     setFeedback(msg);
@@ -219,24 +248,71 @@ export default function ShoppingTab({
             <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 overflow-hidden">
               {pending.map((item, i) => (
                 <div key={item.id}
-                  className={`flex items-center gap-3 px-4 py-3 ${i < pending.length - 1 ? 'border-b border-zinc-50 dark:border-zinc-800/60' : ''}`}>
-                  <button type="button" onClick={() => onToggleItem(item.id)}
-                    className="w-6 h-6 rounded-full border-2 border-zinc-300 dark:border-zinc-600 hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 flex items-center justify-center transition shrink-0 cursor-pointer" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[14px] font-medium text-zinc-900 dark:text-zinc-100 truncate">{item.name}</p>
-                    <p className="text-[11px] text-zinc-400">{item.quantity}</p>
-                  </div>
-                  {item.addedBy && item.addedBy !== 'Yo' && (
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
-                      style={{ backgroundColor: getRoommateColor(item.addedBy) }}
-                      title={item.addedBy}>
-                      {item.addedBy.charAt(0)}
+                  className={`px-4 py-3 ${i < pending.length - 1 ? 'border-b border-zinc-50 dark:border-zinc-800/60' : ''}`}>
+                  {editingId === item.id ? (
+                    <div className="flex flex-col gap-2">
+                      <input
+                        autoFocus
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') saveEdit(item.id); if (e.key === 'Escape') setEditingId(null); }}
+                        className="w-full h-9 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[14px] focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        placeholder="Nombre"
+                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={editQty}
+                          onChange={e => setEditQty(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveEdit(item.id); if (e.key === 'Escape') setEditingId(null); }}
+                          className="w-24 h-9 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          placeholder="Cantidad"
+                        />
+                        <button type="button" onClick={() => saveEdit(item.id)}
+                          className="flex-1 h-9 rounded-xl bg-emerald-600 text-white text-[13px] font-semibold cursor-pointer">
+                          Guardar
+                        </button>
+                        <button type="button" onClick={() => setEditingId(null)}
+                          className="w-9 h-9 flex items-center justify-center text-zinc-400 hover:text-zinc-600 cursor-pointer">
+                          <X size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <button type="button" onClick={() => onToggleItem(item.id)}
+                        className="w-6 h-6 rounded-full border-2 border-zinc-300 dark:border-zinc-600 hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 flex items-center justify-center transition shrink-0 cursor-pointer" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[14px] font-medium text-zinc-900 dark:text-zinc-100 truncate">{item.name}</p>
+                      </div>
+                      {/* Quantity stepper */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button type="button" onClick={() => stepQty(item, -1)}
+                          className="w-7 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 flex items-center justify-center text-[16px] font-bold hover:bg-zinc-200 dark:hover:bg-zinc-700 transition cursor-pointer leading-none">
+                          −
+                        </button>
+                        <span className="min-w-[2.5rem] text-center text-[13px] font-medium text-zinc-700 dark:text-zinc-300">{item.quantity}</span>
+                        <button type="button" onClick={() => stepQty(item, 1)}
+                          className="w-7 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 flex items-center justify-center text-[16px] font-bold hover:bg-zinc-200 dark:hover:bg-zinc-700 transition cursor-pointer leading-none">
+                          +
+                        </button>
+                      </div>
+                      {item.addedBy && item.addedBy !== 'Yo' && (
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                          style={{ backgroundColor: getRoommateColor(item.addedBy) }}
+                          title={item.addedBy}>
+                          {item.addedBy.charAt(0)}
+                        </div>
+                      )}
+                      <button type="button" onClick={() => startEdit(item)}
+                        className="w-7 h-7 flex items-center justify-center text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 transition shrink-0 cursor-pointer">
+                        <Pencil size={13} />
+                      </button>
+                      <button type="button" onClick={() => onRemoveItem(item.id)}
+                        className="w-7 h-7 flex items-center justify-center text-zinc-300 dark:text-zinc-600 hover:text-rose-500 transition shrink-0 cursor-pointer">
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   )}
-                  <button type="button" onClick={() => onRemoveItem(item.id)}
-                    className="w-7 h-7 flex items-center justify-center text-zinc-300 dark:text-zinc-600 hover:text-rose-500 transition shrink-0 cursor-pointer">
-                    <Trash2 size={14} />
-                  </button>
                 </div>
               ))}
             </div>

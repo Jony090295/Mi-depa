@@ -352,6 +352,11 @@ export function useApartmentData(user: User) {
     setShoppingItems(prev => prev.filter(i => i.id !== id));
   };
 
+  const updateShoppingItem = async (id: string, updates: Partial<ShoppingItem>) => {
+    await supabase.from('shopping_items').update(updates).eq('id', id);
+    setShoppingItems(prev => prev.map(i => i.id === id ? { ...i, ...updates } : i));
+  };
+
   const clearShoppingList = async () => {
     if (!apartmentId) return;
     const checkedIds = shoppingItems.filter(i => i.checked).map(i => i.id);
@@ -426,7 +431,7 @@ export function useApartmentData(user: User) {
     addExpense, updateExpense, removeExpense,
     addBill, updateBill, removeBill,
     addBillHistory, removeBillHistory, updateBillHistoryEntry,
-    addShoppingItem, toggleShoppingItem, removeShoppingItem, clearShoppingList,
+    addShoppingItem, toggleShoppingItem, removeShoppingItem, updateShoppingItem, clearShoppingList,
     addSettlement,
     addPost, addReply, addTrustedService,
     reload: loadAll,

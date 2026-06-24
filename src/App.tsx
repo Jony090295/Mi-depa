@@ -59,7 +59,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     addExpense, updateExpense, removeExpense,
     addBill, updateBill, removeBill,
     addBillHistory, removeBillHistory, updateBillHistoryEntry,
-    addShoppingItem, toggleShoppingItem, removeShoppingItem, clearShoppingList,
+    addShoppingItem, toggleShoppingItem, removeShoppingItem, updateShoppingItem, clearShoppingList,
     addSettlement, addPost, addReply, addTrustedService,
   } = data;
 
@@ -569,6 +569,10 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     await clearShoppingList();
   };
 
+  const handleUpdateShoppingItem = async (id: string, updates: Partial<ShoppingItem>) => {
+    await updateShoppingItem(id, updates);
+  };
+
   const handleAddSettlement = async (record: SettlementRecord) => {
     await addSettlement(record);
   };
@@ -1058,6 +1062,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
             onAddItem={handleAddShoppingItem}
             onToggleItem={handleToggleShoppingItem}
             onRemoveItem={handleRemoveShoppingItem}
+            onUpdateItem={handleUpdateShoppingItem}
             onClearList={handleClearShoppingList}
             onChatResponse={() => {}}
             currentUserName={roommates.find(r => r.userId === user.id)?.name ?? 'Yo'}
