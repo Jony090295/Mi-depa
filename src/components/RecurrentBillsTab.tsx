@@ -179,7 +179,7 @@ export default function RecurrentBillsTab({
                   <p className="font-bold text-zinc-900 dark:text-zinc-100 mt-1">{bill.name}</p>
                   <p className="text-sm text-zinc-500">
                     {bill.currency === 'USD' ? '$' : 'S/'}{bill.amount.toFixed(2)}
-                    {' · '}{SPLIT_OPTIONS.find(s => s.value === bill.splitType)?.label || 'Equitativo'}
+                    {' · '}<span className="whitespace-nowrap">{SPLIT_OPTIONS.find(s => s.value === bill.splitType)?.label || 'Equitativo'}</span>
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
