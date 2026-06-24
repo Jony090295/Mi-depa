@@ -20,9 +20,10 @@ export default function AuthScreen({ joinCode }: { joinCode?: string }) {
 
     try {
       if (mode === 'signup') {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        setSent(true);
+        // If email confirmation is disabled in Supabase, session is returned immediately
+        if (!data.session) setSent(true);
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
