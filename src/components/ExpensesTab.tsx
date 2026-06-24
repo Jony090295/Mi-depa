@@ -58,6 +58,7 @@ export default function ExpensesTab({
   const [showSettlementHistory, setShowSettlementHistory] = useState(false);
   const [splitNotification, setSplitNotification] = useState<{ names: { name: string; amount: number; currency: string }[] } | null>(null);
   const [openMenuExpenseId, setOpenMenuExpenseId] = useState<string | null>(null);
+  const [showRecurringReport, setShowRecurringReport] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const getMonthYearStringFromDate = (dateStr: string) => {
@@ -971,6 +972,12 @@ export default function ExpensesTab({
           <div className="flex items-center justify-between px-1">
             <h3 className="text-[18px] font-bold text-zinc-900 dark:text-zinc-100">Gastos</h3>
             <div className="flex items-center gap-2">
+              {bills.length > 0 && (
+                <button type="button" onClick={() => setShowRecurringReport(!showRecurringReport)}
+                  className={`h-9 px-3 flex items-center gap-1.5 rounded-xl text-[12px] font-semibold transition active:scale-90 cursor-pointer ${showRecurringReport ? 'bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'}`}>
+                  Recurrentes
+                </button>
+              )}
               <button type="button" onClick={handleExportPDF}
                 className="w-9 h-9 flex items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition active:scale-90 cursor-pointer">
                 <FileText size={15} />
@@ -983,12 +990,77 @@ export default function ExpensesTab({
             </div>
           </div>
 
-          {filteredExpenses.length === 0 ? (
+          {/* Recurring expenses report */}
+          {showRecurringReport && (() => {
+            const recurringExpenses = filteredExpenses.filter(e => e.recurrentBillId);
+            const byBill: Record<string, { bill: RecurrentBill | undefined; expenses: Expense[] }> = {};
+            recurringExpenses.forEach(e => {
+              const bid = e.recurrentBillId!;
+              if (!byBill[bid]) byBill[bid] = { bill: bills.find(b => b.id === bid), expenses: [] };
+              byBill[bid].expenses.push(e);
+            });
+            const billEntries = Object.entries(byBill);
+            return (
+              <div className="space-y-4 animate-fadeIn">
+                {billEntries.length === 0 ? (
+                  <div className="py-8 text-center text-zinc-400 dark:text-zinc-600">
+                    <p className="text-[14px] font-medium">Sin gastos recurrentes registrados</p>
+                    <p className="text-[12px] mt-1">Usa "Registrar →" desde la sección Recurrentes.</p>
+                  </div>
+                ) : billEntries.map(([billId, { bill, expenses: billExps }]) => {
+                  const total = billExps.reduce((sum, e) => sum + e.amount * (e.currency === 'USD' ? (e.exchangeRate || 3.80) : 1), 0);
+                  const byMonth: Record<string, Expense[]> = {};
+                  billExps.forEach(e => {
+                    const m = getMonthYearStringFromDate(e.date || '') || 'Sin periodo';
+                    if (!byMonth[m]) byMonth[m] = [];
+                    byMonth[m].push(e);
+                  });
+                  return (
+                    <div key={billId} className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 overflow-hidden">
+                      <div className="px-4 py-3 flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800">
+                        <span className="text-[14px] font-bold text-zinc-900 dark:text-zinc-100">{bill?.name ?? 'Gasto recurrente'}</span>
+                        <span className="text-[13px] font-mono font-bold text-indigo-600 dark:text-indigo-400">S/{total.toFixed(2)}</span>
+                      </div>
+                      <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                        {Object.entries(byMonth).sort(([a], [b]) => {
+                          const parse = (ms: string) => { const p = ms.split(' '); const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]; return parseInt(p[1]||'0')*12 + mNames.indexOf(p[0]); };
+                          return parse(b) - parse(a);
+                        }).map(([month, mexps]) => (
+                          <div key={month} className="px-4 py-2.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">{month}</span>
+                              <span className="text-[12px] font-mono text-zinc-600 dark:text-zinc-400">
+                                S/{mexps.reduce((s, e) => s + e.amount * (e.currency === 'USD' ? (e.exchangeRate || 3.80) : 1), 0).toFixed(2)}
+                              </span>
+                            </div>
+                            {mexps.map(e => {
+                              const payer = resolvedAllRoommates.find(r => r.id === e.paidBy);
+                              return (
+                                <div key={e.id} className="flex items-center justify-between mt-1.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="w-5 h-5 rounded-md flex items-center justify-center text-white text-[10px] font-bold shrink-0" style={{ backgroundColor: payer?.color || '#6366f1' }}>{payer?.name.charAt(0) || '?'}</div>
+                                    <span className="text-[12px] text-zinc-700 dark:text-zinc-300">{e.title.replace('[Pago Recurrente] ', '')}</span>
+                                  </div>
+                                  <span className="text-[12px] font-mono text-zinc-700 dark:text-zinc-300">{e.currency === 'USD' ? '$' : 'S/'}{e.amount.toFixed(2)}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
+          {!showRecurringReport && filteredExpenses.length === 0 ? (
             <div className="py-12 text-center text-zinc-400 dark:text-zinc-600">
               <p className="text-[15px] font-medium">Sin gastos registrados</p>
               <p className="text-[13px] mt-1">Toca "Agregar" para registrar el primero.</p>
             </div>
-          ) : (
+          ) : !showRecurringReport && (
             <div className="space-y-5">
               {groupedExpenses.map((group) => (
                 <div key={group.month} className="space-y-2">
