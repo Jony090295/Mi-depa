@@ -1096,7 +1096,7 @@ export default function ExpensesTab({
 
                             {/* Título + meta */}
                             <div className="flex-1 min-w-0">
-                              <p className="text-[13px] font-semibold text-zinc-900 dark:text-zinc-50 line-clamp-2 leading-snug">{expense.title}</p>
+                              <p className="text-[13px] font-semibold text-zinc-900 dark:text-zinc-50 line-clamp-2 leading-snug">{expense.title.replace('[Pago Recurrente] ', '')}</p>
                               <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                                 <span className={`px-1.5 py-0 rounded text-[10px] font-bold uppercase ${catLabel.bg} ${catLabel.text}`}>{catLabel.label}</span>
                                 <span className="text-[11px] text-zinc-400">· {expense.date} · {splitLabel}</span>
