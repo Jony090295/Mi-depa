@@ -14,6 +14,7 @@ type Step = 'choose' | 'create' | 'invite' | 'costs' | 'split' | 'join';
 const SPLIT_OPTIONS = [
   { value: 'equitativo', label: 'Equitativo', desc: 'Cada uno paga lo mismo' },
   { value: 'proporcional', label: 'Proporcional', desc: 'Según el ingreso de cada uno' },
+  { value: 'personalizado', label: '% Personalizado', desc: 'Tú defines el porcentaje de cada uno' },
 ] as const;
 
 function StepDots({ current, total }: { current: number; total: number }) {
@@ -46,7 +47,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode }: Pro
   const [maintenance, setMaintenance] = useState('');
 
   // Split step
-  const [splitType, setSplitType] = useState<'equitativo' | 'proporcional'>('equitativo');
+  const [splitType, setSplitType] = useState<'equitativo' | 'proporcional' | 'personalizado'>('equitativo');
 
   // Join form
   const [inviteCode, setInviteCode] = useState(initialCode ?? '');
@@ -99,6 +100,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode }: Pro
     try {
       await supabase.from('apartments').update({
         rent: parseFloat(rent) || 0,
+        rent_currency: 'USD',
         maintenance: parseFloat(maintenance) || 0,
       }).eq('id', aptId);
       setStep('split');
@@ -264,7 +266,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode }: Pro
             <div className="w-14 h-14 bg-indigo-100 dark:bg-indigo-950/40 rounded-3xl flex items-center justify-center mx-auto mb-4">
               <UserPlus size={24} className="text-indigo-600" />
             </div>
-            <h2 className="text-xl font-black text-zinc-900 dark:text-zinc-100">Invita a tus compañeros</h2>
+            <h2 className="text-xl font-black text-zinc-900 dark:text-zinc-100">Invita a tus roommates</h2>
             <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-1">Comparte el link para que se unan al depa.</p>
           </div>
 
@@ -308,7 +310,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode }: Pro
 
           <div className="space-y-4">
             <div>
-              <label className={labelCls}>Alquiler mensual (S/)</label>
+              <label className={labelCls}>Alquiler mensual (USD)</label>
               <input type="number" inputMode="decimal" value={rent} onChange={e => setRent(e.target.value)}
                 placeholder="Ej. 2500" className={inputCls} />
             </div>
