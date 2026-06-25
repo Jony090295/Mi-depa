@@ -15,7 +15,7 @@ interface Props {
 }
 
 type Step = 'choose' | 'create' | 'roommates' | 'costs' | 'split' | 'join';
-type SplitType = 'equitativo' | 'proporcional' | 'personalizado';
+type SplitType = 'equitativo' | 'proporcional' | 'porcentaje';
 
 interface RoommateEntry {
   tempId: string;
@@ -188,12 +188,12 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
         ...roommates.filter(r => r.name.trim() && r.dbId).map(r => ({ id: r.dbId!, name: r.name, income: r.income, percent: r.percent })),
       ];
 
-      if (splitType === 'personalizado') {
+      if (splitType === 'porcentaje') {
         const total = allPeople.reduce((s, p) => s + (parseFloat(p.percent) || 0), 0);
         if (Math.abs(total - 100) > 0.5) { setError(`Los porcentajes deben sumar 100% (suma actual: ${total.toFixed(0)}%)`); setLoading(false); return; }
         const percs: Record<string, number> = {};
         for (const p of allPeople) if (p.id) percs[p.id] = parseFloat(p.percent) || 0;
-        await supabase.from('apartments').update({ default_split_type: 'personalizado', default_split_percentages: percs }).eq('id', aptId);
+        await supabase.from('apartments').update({ default_split_type: 'porcentaje', default_split_percentages: percs }).eq('id', aptId);
       } else if (splitType === 'proporcional') {
         for (const p of allPeople) {
           if (p.id) await supabase.from('roommates').update({ income: parseFloat(p.income) || 0 }).eq('id', p.id);
@@ -420,12 +420,6 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
                 className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold text-sm rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2">
                 {loading ? <Loader size={18} className="animate-spin" /> : <>Siguiente <ArrowRight size={16} /></>}
               </button>
-              {hasRoommates && (
-                <button type="button" onClick={() => setStep('costs')}
-                  className="w-full mt-3 text-zinc-400 text-sm hover:text-zinc-600 transition text-center">
-                  Invitar después
-                </button>
-              )}
             </>
           )}
         </div>
@@ -499,7 +493,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
             {([
               { value: 'equitativo', label: 'Equitativo', desc: 'Cada uno paga lo mismo' },
               { value: 'proporcional', label: 'Por ingresos', desc: 'Según el sueldo de cada uno' },
-              { value: 'personalizado', label: '% Personalizado', desc: 'Tú defines el porcentaje de cada uno' },
+              { value: 'porcentaje', label: '% Personalizado', desc: 'Tú defines el porcentaje de cada uno' },
             ] as { value: SplitType; label: string; desc: string }[]).map(opt => (
               <button key={opt.value} type="button" onClick={() => setSplitType(opt.value)}
                 className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border-2 transition-all ${
@@ -521,7 +515,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
           </div>
 
           {/* Per-person inputs */}
-          {(splitType === 'proporcional' || splitType === 'personalizado') && (
+          {(splitType === 'proporcional' || splitType === 'porcentaje') && (
             <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-2xl p-4 mb-4 space-y-3">
               <p className="text-xs font-bold uppercase tracking-wide text-zinc-400">
                 {splitType === 'proporcional' ? 'Ingreso mensual por persona (S/)' : 'Porcentaje por persona (%)'}
@@ -540,10 +534,10 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
                     placeholder={splitType === 'proporcional' ? '0' : '0'}
                     className="w-24 h-9 px-3 rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-sm text-right text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
-                  <span className="text-sm text-zinc-400 shrink-0 w-4">{splitType === 'personalizado' ? '%' : ''}</span>
+                  <span className="text-sm text-zinc-400 shrink-0 w-4">{splitType === 'porcentaje' ? '%' : ''}</span>
                 </div>
               ))}
-              {splitType === 'personalizado' && (
+              {splitType === 'porcentaje' && (
                 <div className={`flex justify-between text-xs font-semibold pt-1 border-t border-zinc-100 dark:border-zinc-800 ${Math.abs(percentTotal - 100) < 0.5 ? 'text-emerald-600' : 'text-rose-500'}`}>
                   <span>Total</span>
                   <span>{percentTotal.toFixed(0)}%</span>
