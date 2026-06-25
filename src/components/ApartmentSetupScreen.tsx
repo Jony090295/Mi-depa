@@ -352,6 +352,10 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
             </div>
             <ArrowRight size={18} className="text-zinc-400" />
           </button>
+          <button type="button" onClick={() => supabase.auth.signOut()}
+            className="w-full text-zinc-400 text-sm hover:text-zinc-600 transition pt-2">
+            Usar otra cuenta
+          </button>
         </div>
       </div>
     );
