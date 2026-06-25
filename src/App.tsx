@@ -816,6 +816,17 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                             <p className="text-[14px] font-semibold text-zinc-900 dark:text-zinc-100">{r.name}</p>
                             <p className="text-[11px] text-zinc-400">S/ {r.income.toLocaleString()} · {pct.toFixed(0)}% del ingreso total</p>
                           </div>
+                          {r.userId ? (
+                            <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded-full shrink-0">Activo</span>
+                          ) : (
+                            <button type="button" onClick={() => {
+                              navigator.clipboard.writeText(`${window.location.origin}?join=${aptConfig!.inviteCode}`);
+                              setCodeCopied(true); setTimeout(() => setCodeCopied(false), 2000);
+                            }} className="flex items-center gap-1 text-[10px] font-semibold text-indigo-500 shrink-0">
+                              {codeCopied ? <Check size={10} className="text-emerald-500" /> : <Copy size={10} />}
+                              {codeCopied ? 'Copiado' : 'Invitar'}
+                            </button>
+                          )}
                           <button type="button" onClick={() => setEditingRoommateId(isEditing ? null : r.id)}
                             className="w-7 h-7 flex items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:text-indigo-500 transition active:scale-90 cursor-pointer">
                             <Pencil size={12} />
@@ -949,38 +960,6 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                           <input type="number" inputMode="decimal" value={homeMaintenanceCost} onChange={e => setHomeMaintenanceCost(Number(e.target.value))}
                             className="w-full pl-7 pr-3 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                         </div>
-                      </div>
-                    </div>
-                    {/* Roommate status */}
-                    <div>
-                      <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide">Roommates</label>
-                      <div className="mt-2 space-y-2">
-                        {roommates.map(r => (
-                          <div key={r.id} className="flex items-center gap-3 bg-zinc-50 dark:bg-zinc-800 rounded-xl px-3 py-2.5">
-                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0" style={{ backgroundColor: r.color }}>
-                              {r.name.charAt(0)}
-                            </div>
-                            <span className="flex-1 text-[13px] font-medium text-zinc-700 dark:text-zinc-200">{r.name}</span>
-                            {r.userId ? (
-                              <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded-full">Activo</span>
-                            ) : (
-                              <div className="flex items-center gap-2 shrink-0">
-                                <button type="button" onClick={() => {
-                                  navigator.clipboard.writeText(`${window.location.origin}?join=${aptConfig!.inviteCode}`);
-                                  setCodeCopied(true);
-                                  setTimeout(() => setCodeCopied(false), 2000);
-                                }} className="flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 transition">
-                                  {codeCopied ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
-                                  {codeCopied ? 'Copiado' : 'Invitar'}
-                                </button>
-                                <button type="button" onClick={() => updateRoommates(roommates.filter(rm => rm.id !== r.id))}
-                                  className="w-6 h-6 flex items-center justify-center text-zinc-300 hover:text-rose-500 transition">
-                                  <Trash2 size={13} />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        ))}
                       </div>
                     </div>
                     {aptConfig?.inviteCode && (
