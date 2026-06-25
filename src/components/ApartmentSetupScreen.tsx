@@ -455,7 +455,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
 
               <button onClick={handleSaveRoommates} disabled={loading}
                 className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold text-sm rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2">
-                {loading ? <Loader size={18} className="animate-spin" /> : <>Siguiente <ArrowRight size={16} /></>}
+                {loading ? <Loader size={18} className="animate-spin" /> : <>Invitar después <ArrowRight size={16} /></>}
               </button>
             </>
           )}
