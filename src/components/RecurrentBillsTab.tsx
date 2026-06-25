@@ -241,35 +241,34 @@ export default function RecurrentBillsTab({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[11px] font-bold uppercase tracking-wide text-zinc-400">Monto</label>
-                <div className="mt-1 flex gap-1">
-                  <div className="flex bg-zinc-100 dark:bg-zinc-800 rounded-xl p-0.5 shrink-0">
-                    {(['PEN', 'USD'] as const).map(c => (
-                      <button key={c} type="button" onClick={() => setEditForm(f => ({ ...f, currency: c }))}
-                        className={`px-2 h-8 rounded-lg text-[10px] font-bold transition ${editForm.currency === c ? 'bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-zinc-100' : 'text-zinc-500'}`}>
-                        {c === 'PEN' ? 'S/' : '$'}
-                      </button>
-                    ))}
-                  </div>
-                  <input
-                    type="number" inputMode="decimal" value={editForm.amount}
-                    onChange={e => setEditForm(f => ({ ...f, amount: e.target.value === '' ? '' : parseFloat(e.target.value) }))}
-                    className="flex-1 h-9 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-wide text-zinc-400">Monto</label>
+              <div className="mt-1 flex gap-2">
+                <div className="flex bg-zinc-100 dark:bg-zinc-800 rounded-xl p-0.5 shrink-0">
+                  {(['PEN', 'USD'] as const).map(c => (
+                    <button key={c} type="button" onClick={() => setEditForm(f => ({ ...f, currency: c }))}
+                      className={`px-3 h-9 rounded-lg text-[12px] font-bold transition ${editForm.currency === c ? 'bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-zinc-100' : 'text-zinc-500'}`}>
+                      {c === 'PEN' ? 'S/' : 'USD'}
+                    </button>
+                  ))}
                 </div>
+                <input
+                  type="number" inputMode="decimal" value={editForm.amount}
+                  onChange={e => setEditForm(f => ({ ...f, amount: e.target.value === '' ? '' : parseFloat(e.target.value) }))}
+                  placeholder="0.00"
+                  className="flex-1 h-11 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
               </div>
-              <div>
-                <label className="text-[11px] font-bold uppercase tracking-wide text-zinc-400">Categoría</label>
-                <select
-                  value={editForm.category}
-                  onChange={e => setEditForm(f => ({ ...f, category: e.target.value as ExpenseCategory }))}
-                  className="mt-1 w-full h-9 px-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  {CATEGORY_OPTIONS.map(c => <option key={c} value={c}>{CATEGORY_LABELS[c]?.label || c}</option>)}
-                </select>
-              </div>
+            </div>
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-wide text-zinc-400">Categoría</label>
+              <select
+                value={editForm.category}
+                onChange={e => setEditForm(f => ({ ...f, category: e.target.value as ExpenseCategory }))}
+                className="mt-1 w-full h-11 px-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                {CATEGORY_OPTIONS.map(c => <option key={c} value={c}>{CATEGORY_LABELS[c]?.label || c}</option>)}
+              </select>
             </div>
 
             <div>
