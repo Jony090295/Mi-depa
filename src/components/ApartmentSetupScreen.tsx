@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import {
@@ -63,6 +63,33 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
   const [roommates, setRoommates] = useState<RoommateEntry[]>([
     { tempId: crypto.randomUUID(), name: '', income: '', percent: '' },
   ]);
+  const [roommatesLoaded, setRoommatesLoaded] = useState(false);
+
+  // On resume: load all existing data so nothing gets duplicated or overwritten
+  useEffect(() => {
+    if (!resumeAptId || roommatesLoaded) return;
+    Promise.all([
+      supabase.from('apartments').select('rent, maintenance, rent_currency').eq('id', resumeAptId).single(),
+      supabase.from('roommates').select('id, name, income, color, user_id').eq('apartment_id', resumeAptId),
+    ]).then(([{ data: apt }, { data: rms }]) => {
+      // Pre-populate costs
+      if (apt) {
+        if (apt.rent) setRent(String(apt.rent));
+        if (apt.maintenance) setMaintenance(String(apt.maintenance));
+      }
+      // Pre-populate roommates: creator (has user_id) and pending ones (no user_id)
+      if (rms) {
+        const creator = rms.find(r => r.user_id === user.id);
+        if (creator) { setMyName(creator.name); setCreatorDbId(creator.id); }
+        const pending = rms.filter(r => !r.user_id);
+        if (pending.length > 0) {
+          setHasRoommates(true);
+          setRoommates(pending.map(r => ({ tempId: r.id, name: r.name, income: String(r.income ?? ''), percent: '', dbId: r.id })));
+        }
+      }
+      setRoommatesLoaded(true);
+    });
+  }, [resumeAptId, roommatesLoaded]);
 
   // Costs step
   const [rent, setRent] = useState('');
@@ -138,15 +165,25 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
     setError('');
     setLoading(true);
     try {
-      const inserts = named.map((r, i) => ({
-        apartment_id: aptId,
-        name: r.name.trim(),
-        income: 0,
-        color: COLORS[i % COLORS.length],
-        sort_order: i + 1,
-      }));
-      if (inserts.length > 0) {
-        const { data: inserted } = await supabase.from('roommates').insert(inserts).select('id, name');
+      const toInsert = named.filter(r => !r.dbId);
+      const toUpdate = named.filter(r => r.dbId);
+
+      // Update existing rows (name may have changed)
+      for (const r of toUpdate) {
+        await supabase.from('roommates').update({ name: r.name.trim() }).eq('id', r.dbId!);
+      }
+
+      // Insert only truly new ones
+      if (toInsert.length > 0) {
+        const { data: inserted } = await supabase.from('roommates').insert(
+          toInsert.map((r, i) => ({
+            apartment_id: aptId,
+            name: r.name.trim(),
+            income: 0,
+            color: COLORS[(toUpdate.length + i) % COLORS.length],
+            sort_order: toUpdate.length + i + 1,
+          }))
+        ).select('id, name');
         if (inserted) {
           setRoommates(prev => prev.map(r => {
             const match = inserted.find(ins => ins.name === r.name.trim());
