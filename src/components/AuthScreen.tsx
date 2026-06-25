@@ -74,7 +74,7 @@ export default function AuthScreen({ joinCode }: { joinCode?: string }) {
             <Home size={28} className="text-white" />
           </div>
           <h1 className="text-2xl font-black text-zinc-900 dark:text-zinc-100">Mi Depa</h1>
-          <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-1">Gastos compartidos, sin drama.</p>
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-1">Gastos compartidos, sin complicaciones.</p>
         </div>
 
         {joinCode && (

@@ -476,6 +476,10 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
                 className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold text-sm rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2">
                 {loading ? <Loader size={18} className="animate-spin" /> : <>Invitar después <ArrowRight size={16} /></>}
               </button>
+              {!resumeAptId && (
+                <button type="button" onClick={() => setStep('create')}
+                  className="w-full text-zinc-400 text-sm hover:text-zinc-600 transition">← Volver</button>
+              )}
             </>
           )}
         </div>
@@ -513,6 +517,8 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
               className="w-full text-zinc-400 text-sm hover:text-zinc-600 transition">
               Completar después
             </button>
+            <button type="button" onClick={() => setStep('roommates')}
+              className="w-full text-zinc-400 text-sm hover:text-zinc-600 transition">← Volver</button>
           </div>
         </div>
       </div>
@@ -608,6 +614,8 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
             className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold text-sm rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2">
             {loading ? <Loader size={18} className="animate-spin" /> : <>Entrar al depa <ArrowRight size={16} /></>}
           </button>
+          <button type="button" onClick={() => setStep('costs')}
+            className="w-full text-zinc-400 text-sm hover:text-zinc-600 transition">← Volver</button>
         </div>
       </div>
     );
