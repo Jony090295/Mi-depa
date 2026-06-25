@@ -10,6 +10,8 @@ interface Props {
   user: User;
   onReady: () => void;
   initialCode?: string;
+  resumeAptId?: string;
+  resumeInviteCode?: string;
 }
 
 type Step = 'choose' | 'create' | 'roommates' | 'costs' | 'split' | 'join';
@@ -38,8 +40,8 @@ function StepDots({ current, total }: { current: number; total: number }) {
 const inputCls = 'mt-1 w-full h-12 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500';
 const labelCls = 'text-xs font-bold uppercase tracking-wide text-zinc-400';
 
-export default function ApartmentSetupScreen({ user, onReady, initialCode }: Props) {
-  const [step, setStep] = useState<Step>(initialCode ? 'join' : 'choose');
+export default function ApartmentSetupScreen({ user, onReady, initialCode, resumeAptId, resumeInviteCode }: Props) {
+  const [step, setStep] = useState<Step>(resumeAptId ? 'roommates' : initialCode ? 'join' : 'choose');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -52,8 +54,8 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode }: Pro
   const [creatorDbId, setCreatorDbId] = useState('');
 
   // Apartment created state
-  const [aptId, setAptId] = useState('');
-  const [inviteLink, setInviteLink] = useState('');
+  const [aptId, setAptId] = useState(resumeAptId ?? '');
+  const [inviteLink, setInviteLink] = useState(resumeInviteCode ? `${window.location.origin}?join=${resumeInviteCode}` : '');
   const [linkCopied, setLinkCopied] = useState(false);
 
   // Roommates step
@@ -201,6 +203,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode }: Pro
         await supabase.from('apartments').update({ default_split_type: 'equitativo' }).eq('id', aptId);
       }
 
+      await supabase.from('apartments').update({ onboarding_complete: true }).eq('id', aptId);
       onReady();
     } catch (err: any) {
       setError(err.message || 'Error al guardar.');

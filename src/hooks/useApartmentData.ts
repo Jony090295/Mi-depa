@@ -105,6 +105,7 @@ export function useApartmentData(user: User) {
   const [settlementHistory, setSettlementHistory] = useState<SettlementRecord[]>([]);
   const [loading, setLoading]             = useState(true);
   const [noApartment, setNoApartment]     = useState(false);
+  const [onboardingComplete, setOnboardingComplete] = useState(true);
 
   // ── Load everything from Supabase ─────────────────────────────────────────
   const loadAll = useCallback(async () => {
@@ -142,6 +143,7 @@ export function useApartmentData(user: User) {
           defaultSplitType: apt.default_split_type ?? 'equitativo',
           defaultSplitPercentages: apt.default_split_percentages ?? {},
         });
+        setOnboardingComplete(apt.onboarding_complete === true);
       }
 
       // 3. Load all tables in parallel
@@ -412,6 +414,7 @@ export function useApartmentData(user: User) {
   return {
     loading,
     noApartment,
+    onboardingComplete,
     apartmentId,
     aptConfig,
     roommates,

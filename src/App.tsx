@@ -51,7 +51,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
   const data = useApartmentData(user);
 
   const {
-    loading: dataLoading, noApartment, reload,
+    loading: dataLoading, noApartment, onboardingComplete, reload,
     aptConfig, roommates, expenses, bills, billHistory,
     shoppingItems, posts, trustedServices, settlementHistory,
     setExpenses, setBills, setBillHistory,
@@ -609,6 +609,10 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
 
   if (noApartment) {
     return <ApartmentSetupScreen user={user} onReady={reload} initialCode={joinCode} />;
+  }
+
+  if (!onboardingComplete && aptConfig) {
+    return <ApartmentSetupScreen user={user} onReady={reload} resumeAptId={aptConfig.id} resumeInviteCode={aptConfig.inviteCode} />;
   }
 
   // ── Derived stats ─────────────────────────────────────────────────────────
