@@ -60,7 +60,8 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     addBill, updateBill, removeBill,
     addBillHistory, removeBillHistory, updateBillHistoryEntry,
     addShoppingItem, toggleShoppingItem, removeShoppingItem, updateShoppingItem, clearShoppingList,
-    addSettlement, addPost, addReply, addTrustedService,
+    addSettlement, addPost, updatePost, deletePost, addReply,
+    addTrustedService, updateTrustedService, deleteTrustedService,
   } = data;
 
   // ── Derived config values ─────────────────────────────────────────────────
@@ -1089,8 +1090,13 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
             posts={posts}
             onAddPost={handleAddPost}
             onAddReply={handleAddReply}
+            onUpdatePost={updatePost}
+            onDeletePost={deletePost}
             trustedServices={trustedServices}
             onAddTrustedService={addTrustedService}
+            onUpdateTrustedService={updateTrustedService}
+            onDeleteTrustedService={deleteTrustedService}
+            currentUserId={user.id}
           />
         )}
 

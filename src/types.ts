@@ -109,6 +109,7 @@ export interface TrustedService {
   phone: string;
   rating: number; // 1-5
   recommendedBy?: string;
+  userId?: string;
 }
 
 export interface ForumReply {
@@ -126,4 +127,5 @@ export interface ForumPost {
   type: 'tip' | 'pregunta' | 'alerta';
   createdAt: string;
   replies: ForumReply[];
+  userId?: string;
 }

@@ -1,13 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { TrustedService, ForumPost, ForumReply } from '../types';
-import { Phone, Star, Plus, Search, MessageSquare, ChevronDown, ChevronUp, Lightbulb, HelpCircle, X } from 'lucide-react';
+import { Phone, Star, Plus, Search, MessageSquare, ChevronDown, ChevronUp, Lightbulb, HelpCircle, X, Pencil, Trash2 } from 'lucide-react';
 
 interface CommunityTabProps {
   posts: ForumPost[];
   onAddPost: (post: ForumPost) => void;
   onAddReply: (postId: string, reply: ForumReply) => void;
+  onUpdatePost: (id: string, updates: { title: string; content: string }) => void;
+  onDeletePost: (id: string) => void;
   trustedServices: TrustedService[];
   onAddTrustedService: (svc: TrustedService) => void;
+  onUpdateTrustedService: (id: string, updates: Partial<TrustedService>) => void;
+  onDeleteTrustedService: (id: string) => void;
+  currentUserId: string;
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -33,7 +38,7 @@ const TYPE_META = {
 
 // ── main component ───────────────────────────────────────────────────────────
 
-export default function CommunityTab({ posts, onAddPost, onAddReply, trustedServices: services, onAddTrustedService }: CommunityTabProps) {
+export default function CommunityTab({ posts, onAddPost, onAddReply, onUpdatePost, onDeletePost, trustedServices: services, onAddTrustedService, onUpdateTrustedService, onDeleteTrustedService, currentUserId }: CommunityTabProps) {
   const [section, setSection] = useState<'directory' | 'forum'>('directory');
 
   // ── Directory state ──────────────────────────────────────────────────────
@@ -60,13 +65,27 @@ export default function CommunityTab({ posts, onAddPost, onAddReply, trustedServ
   const [postAuthor, setPostAuthor]     = useState('');
   const [postType, setPostType]         = useState<'tip' | 'pregunta'>('tip');
 
+  // edit post
+  const [editPost, setEditPost]         = useState<ForumPost | null>(null);
+  const [editPostTitle, setEditPostTitle] = useState('');
+  const [editPostContent, setEditPostContent] = useState('');
+
+  // edit service
+  const [editService, setEditService]   = useState<TrustedService | null>(null);
+  const [editSvcName, setEditSvcName]   = useState('');
+  const [editSvcCategory, setEditSvcCategory] = useState('');
+  const [editSvcPhone, setEditSvcPhone] = useState('');
+  const [editSvcRating, setEditSvcRating] = useState(5);
+  const [editSvcReview, setEditSvcReview] = useState('');
+  const [editSvcRecommendedBy, setEditSvcRecommendedBy] = useState('');
+
 
   // ── Body scroll lock for sheets ──────────────────────────────────────────
   useEffect(() => {
-    const open = showAddService || showAddPost;
+    const open = showAddService || showAddPost || !!editPost || !!editService;
     document.body.style.overflow = open ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
-  }, [showAddService, showAddPost]);
+  }, [showAddService, showAddPost, editPost, editService]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handleAddService = async (e: React.FormEvent) => {
@@ -103,6 +122,40 @@ export default function CommunityTab({ posts, onAddPost, onAddReply, trustedServ
     });
     setReplyText(p => ({ ...p, [postId]: '' }));
     setReplyAuthor(p => ({ ...p, [postId]: '' }));
+  };
+
+  const openEditPost = (post: ForumPost) => {
+    setEditPost(post);
+    setEditPostTitle(post.title);
+    setEditPostContent(post.content);
+  };
+
+  const handleSaveEditPost = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editPost || !editPostTitle.trim() || !editPostContent.trim()) return;
+    onUpdatePost(editPost.id, { title: editPostTitle.trim(), content: editPostContent.trim() });
+    setEditPost(null);
+  };
+
+  const openEditService = (svc: TrustedService) => {
+    setEditService(svc);
+    setEditSvcName(svc.name);
+    setEditSvcCategory(svc.category);
+    setEditSvcPhone(svc.phone);
+    setEditSvcRating(svc.rating);
+    setEditSvcReview(svc.description);
+    setEditSvcRecommendedBy(svc.recommendedBy ?? '');
+  };
+
+  const handleSaveEditService = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editService || !editSvcName.trim() || !editSvcPhone.trim() || !editSvcReview.trim()) return;
+    onUpdateTrustedService(editService.id, {
+      name: editSvcName.trim(), category: editSvcCategory,
+      phone: editSvcPhone.trim(), rating: editSvcRating,
+      description: editSvcReview.trim(), recommendedBy: editSvcRecommendedBy.trim(),
+    });
+    setEditService(null);
   };
 
   // ── Filtered lists ───────────────────────────────────────────────────────
@@ -183,11 +236,25 @@ export default function CommunityTab({ posts, onAddPost, onAddReply, trustedServ
                     <p className="text-[11px] text-zinc-400 truncate">
                       Recomendado por <span className="font-semibold text-zinc-600 dark:text-zinc-300">{s.recommendedBy || 'la comunidad'}</span>
                     </p>
-                    <a href={`tel:${s.phone}`}
-                      className="shrink-0 flex items-center gap-1.5 h-8 px-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 text-[12px] font-semibold hover:bg-emerald-100 transition">
-                      <Phone size={12} className="fill-emerald-700 dark:fill-emerald-400 stroke-none" />
-                      Llamar
-                    </a>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {s.userId === currentUserId && (
+                        <>
+                          <button type="button" onClick={() => openEditService(s)}
+                            className="w-8 h-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-indigo-600 transition">
+                            <Pencil size={13} />
+                          </button>
+                          <button type="button" onClick={() => { if (confirm('¿Eliminar este contacto?')) onDeleteTrustedService(s.id); }}
+                            className="w-8 h-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-rose-600 transition">
+                            <Trash2 size={13} />
+                          </button>
+                        </>
+                      )}
+                      <a href={`tel:${s.phone}`}
+                        className="flex items-center gap-1.5 h-8 px-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 text-[12px] font-semibold hover:bg-emerald-100 transition">
+                        <Phone size={12} className="fill-emerald-700 dark:fill-emerald-400 stroke-none" />
+                        Llamar
+                      </a>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -270,6 +337,18 @@ export default function CommunityTab({ posts, onAddPost, onAddReply, trustedServ
                         {/* Full content */}
                         <div className="px-4 py-3">
                           <p className="text-[13px] text-zinc-600 dark:text-zinc-300 leading-relaxed">{post.content}</p>
+                          {post.userId === currentUserId && (
+                            <div className="flex gap-2 mt-2">
+                              <button type="button" onClick={() => openEditPost(post)}
+                                className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-indigo-600 transition">
+                                <Pencil size={12} /> Editar
+                              </button>
+                              <button type="button" onClick={() => { if (confirm('¿Eliminar esta publicación?')) onDeletePost(post.id); }}
+                                className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-rose-600 transition">
+                                <Trash2 size={12} /> Eliminar
+                              </button>
+                            </div>
+                          )}
                         </div>
 
                         {/* Replies */}
@@ -388,6 +467,103 @@ export default function CommunityTab({ posts, onAddPost, onAddReply, trustedServ
               <button type="submit" form="add-service-form"
                 className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold text-[15px] rounded-2xl transition cursor-pointer">
                 Agregar al directorio
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ SHEET: Editar contacto ══════════════════════════════════════════ */}
+      {editService && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end justify-center"
+          style={{ paddingTop: 'max(env(safe-area-inset-top), 52px)', paddingBottom: 'calc(56px + env(safe-area-inset-bottom))' }}
+          onClick={e => { if (e.target === e.currentTarget) setEditService(null); }}>
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-xl rounded-t-3xl shadow-2xl flex flex-col" style={{ maxHeight: '100%' }}>
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800">
+              <h2 className="text-[17px] font-bold text-zinc-900 dark:text-zinc-100">Editar contacto</h2>
+              <button type="button" onClick={() => setEditService(null)}
+                className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 cursor-pointer active:scale-90 transition">
+                <X size={15} />
+              </button>
+            </div>
+            <form id="edit-service-form" onSubmit={handleSaveEditService} className="overflow-y-auto flex-1 min-h-0 px-6 py-4 space-y-4">
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-wide text-zinc-400">Nombre del proveedor *</label>
+                <input type="text" required value={editSvcName} onChange={e => setEditSvcName(e.target.value)}
+                  className="mt-1 w-full h-11 px-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-[14px] text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-wide text-zinc-400">Especialidad / Rubro</label>
+                <select value={editSvcCategory} onChange={e => setEditSvcCategory(e.target.value)}
+                  className="mt-1 w-full h-11 px-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-[14px] text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer">
+                  {CATEGORY_LIST.filter(c => c !== 'Todos').map(c => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-wide text-zinc-400">Teléfono *</label>
+                <input type="tel" required value={editSvcPhone} onChange={e => setEditSvcPhone(e.target.value)}
+                  className="mt-1 w-full h-11 px-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-[14px] text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-wide text-zinc-400">Calificación</label>
+                <div className="mt-2 flex items-center gap-1">
+                  {[1,2,3,4,5].map(i => (
+                    <button key={i} type="button" onClick={() => setEditSvcRating(i)} className="cursor-pointer p-0.5 active:scale-110 transition">
+                      <Star size={24} className={i <= editSvcRating ? 'fill-amber-400 text-amber-400' : 'text-zinc-200 dark:text-zinc-700'} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-wide text-zinc-400">¿Quién lo recomienda?</label>
+                <input type="text" value={editSvcRecommendedBy} onChange={e => setEditSvcRecommendedBy(e.target.value)}
+                  className="mt-1 w-full h-11 px-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-[14px] text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-wide text-zinc-400">Reseña *</label>
+                <textarea required rows={3} value={editSvcReview} onChange={e => setEditSvcReview(e.target.value)}
+                  className="mt-1 w-full px-4 py-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-[14px] text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+              </div>
+            </form>
+            <div className="px-6 pt-3 pb-4 flex-shrink-0 border-t border-zinc-100 dark:border-zinc-800">
+              <button type="submit" form="edit-service-form"
+                className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold text-[15px] rounded-2xl transition cursor-pointer">
+                Guardar cambios
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ SHEET: Editar publicación ════════════════════════════════════════ */}
+      {editPost && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end justify-center"
+          style={{ paddingTop: 'max(env(safe-area-inset-top), 52px)', paddingBottom: 'calc(56px + env(safe-area-inset-bottom))' }}
+          onClick={e => { if (e.target === e.currentTarget) setEditPost(null); }}>
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-xl rounded-t-3xl shadow-2xl flex flex-col" style={{ maxHeight: '100%' }}>
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800">
+              <h2 className="text-[17px] font-bold text-zinc-900 dark:text-zinc-100">Editar publicación</h2>
+              <button type="button" onClick={() => setEditPost(null)}
+                className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 cursor-pointer active:scale-90 transition">
+                <X size={15} />
+              </button>
+            </div>
+            <form id="edit-post-form" onSubmit={handleSaveEditPost} className="overflow-y-auto flex-1 min-h-0 px-6 py-4 space-y-4">
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-wide text-zinc-400">Título *</label>
+                <input type="text" required value={editPostTitle} onChange={e => setEditPostTitle(e.target.value)}
+                  className="mt-1 w-full h-11 px-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-[14px] text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-wide text-zinc-400">Contenido *</label>
+                <textarea required rows={5} value={editPostContent} onChange={e => setEditPostContent(e.target.value)}
+                  className="mt-1 w-full px-4 py-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-[14px] text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+              </div>
+            </form>
+            <div className="px-6 pt-3 pb-4 flex-shrink-0 border-t border-zinc-100 dark:border-zinc-800">
+              <button type="submit" form="edit-post-form"
+                className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold text-[15px] rounded-2xl transition cursor-pointer">
+                Guardar cambios
               </button>
             </div>
           </div>

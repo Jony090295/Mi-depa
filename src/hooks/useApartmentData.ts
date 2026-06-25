@@ -61,7 +61,7 @@ function rowToShoppingItem(r: any): ShoppingItem {
 function rowToPost(r: any, replies: any[]): ForumPost {
   return {
     id: r.id, author: r.author, title: r.title, content: r.content,
-    type: r.type, createdAt: r.created_at,
+    type: r.type, createdAt: r.created_at, userId: r.user_id ?? undefined,
     replies: replies
       .filter(rep => rep.post_id === r.id)
       .map(rep => ({ id: rep.id, author: rep.author, content: rep.content, createdAt: rep.created_at })),
@@ -179,6 +179,7 @@ export function useApartmentData(user: User) {
       setTrustedServices((svcRows ?? []).map((r: any) => ({
         id: r.id, name: r.name, category: r.category, phone: r.phone,
         rating: r.rating, description: r.description, recommendedBy: r.recommended_by,
+        userId: r.user_id ?? undefined,
       })));
     } catch (err) {
       console.error('Error loading apartment data:', err);
@@ -387,18 +388,44 @@ export function useApartmentData(user: User) {
       id: post.id, apartment_id: apartmentId,
       author: post.author, title: post.title,
       content: post.content, type: post.type, created_at: post.createdAt,
+      user_id: user.id,
     });
-    setPosts(prev => [post, ...prev]);
+    setPosts(prev => [{ ...post, userId: user.id }, ...prev]);
+  };
+
+  const updatePost = async (id: string, updates: { title: string; content: string }) => {
+    await supabase.from('forum_posts').update(updates).eq('id', id).eq('user_id', user.id);
+    setPosts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+  };
+
+  const deletePost = async (id: string) => {
+    await supabase.from('forum_posts').delete().eq('id', id).eq('user_id', user.id);
+    setPosts(prev => prev.filter(p => p.id !== id));
   };
 
   const addTrustedService = async (svc: TrustedService) => {
     if (!apartmentId) return;
+    const newId = crypto.randomUUID();
     const { error } = await supabase.from('trusted_services').insert({
-      id: crypto.randomUUID(), apartment_id: apartmentId,
+      id: newId, apartment_id: apartmentId,
       name: svc.name, category: svc.category, phone: svc.phone,
       rating: svc.rating, description: svc.description, recommended_by: svc.recommendedBy,
+      user_id: user.id,
     });
-    if (!error) setTrustedServices(prev => [svc, ...prev]);
+    if (!error) setTrustedServices(prev => [{ ...svc, id: newId, userId: user.id }, ...prev]);
+  };
+
+  const updateTrustedService = async (id: string, updates: Partial<TrustedService>) => {
+    await supabase.from('trusted_services').update({
+      name: updates.name, category: updates.category, phone: updates.phone,
+      rating: updates.rating, description: updates.description, recommended_by: updates.recommendedBy,
+    }).eq('id', id).eq('user_id', user.id);
+    setTrustedServices(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+  };
+
+  const deleteTrustedService = async (id: string) => {
+    await supabase.from('trusted_services').delete().eq('id', id).eq('user_id', user.id);
+    setTrustedServices(prev => prev.filter(s => s.id !== id));
   };
 
   const addReply = async (postId: string, reply: ForumReply) => {
@@ -437,7 +464,8 @@ export function useApartmentData(user: User) {
     addBillHistory, removeBillHistory, updateBillHistoryEntry,
     addShoppingItem, toggleShoppingItem, removeShoppingItem, updateShoppingItem, clearShoppingList,
     addSettlement,
-    addPost, addReply, addTrustedService,
+    addPost, updatePost, deletePost, addReply,
+    addTrustedService, updateTrustedService, deleteTrustedService,
     reload: loadAll,
   };
 }
