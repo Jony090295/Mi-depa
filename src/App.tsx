@@ -964,14 +964,20 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                             {r.userId ? (
                               <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded-full">Activo</span>
                             ) : (
-                              <button type="button" onClick={() => {
-                                navigator.clipboard.writeText(`${window.location.origin}?join=${aptConfig!.inviteCode}`);
-                                setCodeCopied(true);
-                                setTimeout(() => setCodeCopied(false), 2000);
-                              }} className="flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 transition shrink-0">
-                                {codeCopied ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
-                                {codeCopied ? 'Copiado' : 'Invitar'}
-                              </button>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <button type="button" onClick={() => {
+                                  navigator.clipboard.writeText(`${window.location.origin}?join=${aptConfig!.inviteCode}`);
+                                  setCodeCopied(true);
+                                  setTimeout(() => setCodeCopied(false), 2000);
+                                }} className="flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 transition">
+                                  {codeCopied ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
+                                  {codeCopied ? 'Copiado' : 'Invitar'}
+                                </button>
+                                <button type="button" onClick={() => updateRoommates(roommates.filter(rm => rm.id !== r.id))}
+                                  className="w-6 h-6 flex items-center justify-center text-zinc-300 hover:text-rose-500 transition">
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
                             )}
                           </div>
                         ))}
