@@ -69,28 +69,38 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
   useEffect(() => {
     if (!resumeAptId || roommatesLoaded) return;
     Promise.all([
-      supabase.from('apartments').select('rent, maintenance, rent_currency').eq('id', resumeAptId).single(),
+      supabase.from('apartments').select('rent, maintenance, rent_currency, default_split_type, default_split_percentages').eq('id', resumeAptId).single(),
       supabase.from('roommates').select('id, name, income, color, user_id').eq('apartment_id', resumeAptId),
     ]).then(([{ data: apt }, { data: rms }]) => {
       let resumeStep: Step = 'roommates';
 
-      // Pre-populate costs
+      // Pre-populate costs and split
       if (apt) {
         if (apt.rent) setRent(String(apt.rent));
         if (apt.maintenance) setMaintenance(String(apt.maintenance));
+        if (apt.default_split_type) setSplitType(apt.default_split_type as SplitType);
         // If costs were already saved, resume at split
         if (apt.rent > 0 || apt.maintenance > 0) resumeStep = 'split';
       }
 
       // Pre-populate roommates
       if (rms) {
+        const percs: Record<string, number> = apt?.default_split_percentages ?? {};
         const creator = rms.find(r => r.user_id === user.id);
-        if (creator) { setMyName(creator.name); setCreatorDbId(creator.id); }
+        if (creator) {
+          setMyName(creator.name);
+          setCreatorDbId(creator.id);
+          setCreatorIncome(creator.income ? String(creator.income) : '');
+          setCreatorPercent(percs[creator.id] ? String(percs[creator.id]) : '');
+        }
         const pending = rms.filter(r => !r.user_id);
         if (pending.length > 0) {
           setHasRoommates(true);
-          setRoommates(pending.map(r => ({ tempId: r.id, name: r.name, income: String(r.income ?? ''), percent: '', dbId: r.id })));
-          // Roommates were saved → at least at costs step (unless costs already set us to split)
+          setRoommates(pending.map(r => ({
+            tempId: r.id, name: r.name, dbId: r.id,
+            income: r.income ? String(r.income) : '',
+            percent: percs[r.id] ? String(percs[r.id]) : '',
+          })));
           if (resumeStep === 'roommates') resumeStep = 'costs';
         }
       }
