@@ -84,6 +84,8 @@ export default function ExpensesTab({
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [showRecurringPicker, setShowRecurringPicker] = useState(false);
   const [showPayerDropdown, setShowPayerDropdown] = useState(false);
+  const [filterMacro, setFilterMacro] = useState<'todos' | 'hogar' | 'personal'>('todos');
+  const [filterMonth, setFilterMonth] = useState<'mes' | 'todo'>('mes');
   const imageInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -567,26 +569,55 @@ export default function ExpensesTab({
     );
   };
 
+  // ── Filtros y agrupación por fecha para la lista ──
+  const today = new Date().toISOString().split('T')[0];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  const currentMonthPrefix = today.slice(0, 7);
+
+  const visibleExpenses = filteredExpenses.filter(e => {
+    if (filterMacro !== 'todos' && e.macroCategory !== filterMacro) return false;
+    if (filterMonth === 'mes' && !(e.date || '').startsWith(currentMonthPrefix)) return false;
+    return true;
+  });
+
+  const groupedByDate: { label: string; items: Expense[] }[] = [];
+  visibleExpenses.forEach(e => {
+    const d = e.date || '';
+    const label = d === today ? 'Hoy' : d === yesterday ? 'Ayer' : d.slice(5).replace('-', ' ').toUpperCase();
+    const existing = groupedByDate.find(g => g.label === label);
+    if (existing) existing.items.push(e);
+    else groupedByDate.push({ label, items: [e] });
+  });
+
+  const totalVisible = visibleExpenses.reduce((s, e) => {
+    const r = e.currency === 'USD' ? (e.exchangeRate || 3.8) : 1;
+    return s + e.amount * r;
+  }, 0);
+
+  const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+  const dayOfMonth = new Date().getDate();
+  const dailyAvg = dayOfMonth > 0 ? totalVisible / dayOfMonth : 0;
+
   return (
-    <div className="space-y-8 max-w-6xl mx-auto px-4 md:px-0">
+    <div className="max-w-xl mx-auto" style={{ background: '#F7F7FC', minHeight: '100vh', paddingBottom: 96 }}>
       {/* Toast */}
       {successMsg && (
-        <div className="fixed top-4 right-4 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 z-50 animate-fadeIn">
-          <Check size={18} />
-          <span>{successMsg}</span>
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-lg flex items-center gap-2 z-50 animate-fadeIn">
+          <Check size={16} />
+          <span className="text-[14px] font-medium">{successMsg}</span>
         </div>
       )}
 
-      {/* Split notification toast */}
+      {/* Split notification */}
       {splitNotification && (
-        <div className="fixed bottom-32 right-4 bg-white dark:bg-zinc-800 border border-indigo-200 dark:border-indigo-800 text-zinc-900 dark:text-zinc-100 px-4 py-3 rounded-2xl shadow-xl z-50 max-w-xs animate-fadeIn">
+        <div className="fixed bottom-32 left-1/2 -translate-x-1/2 bg-white dark:bg-zinc-800 border border-indigo-200 px-4 py-3 rounded-2xl shadow-xl z-50 max-w-xs w-full animate-fadeIn">
           <div className="flex items-start justify-between gap-2 mb-2">
-            <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">Gasto registrado — recuerda avisar a:</span>
-            <button onClick={() => setSplitNotification(null)} className="text-zinc-400 hover:text-zinc-600 transition cursor-pointer shrink-0"><X size={14} /></button>
+            <span className="text-[12px] font-semibold text-indigo-600">Recuerda avisar a:</span>
+            <button onClick={() => setSplitNotification(null)} className="text-zinc-400"><X size={14} /></button>
           </div>
           <ul className="space-y-1">
             {splitNotification.names.map((n, i) => (
-              <li key={i} className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 flex items-center justify-between">
+              <li key={i} className="text-[12px] font-medium text-zinc-700 dark:text-zinc-300 flex justify-between">
                 <span>{n.name}</span>
                 <span className="font-mono text-rose-500">{n.currency} {n.amount.toFixed(2)}</span>
               </li>
@@ -597,145 +628,152 @@ export default function ExpensesTab({
 
       {/* Lightbox */}
       {lightboxImage && (
-        <div
-          className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 cursor-zoom-out"
-          onClick={() => setLightboxImage(null)}
-        >
-          <img src={lightboxImage} alt="Comprobante" className="max-w-full max-h-full rounded-2xl shadow-2xl object-contain" />
-          <button className="absolute top-4 right-4 bg-white/20 hover:bg-white/30 text-white p-2 rounded-full transition cursor-pointer" onClick={() => setLightboxImage(null)}>
-            <X size={20} />
-          </button>
+        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4" onClick={() => setLightboxImage(null)}>
+          <img src={lightboxImage} alt="Comprobante" className="max-w-full max-h-full rounded-2xl object-contain" />
+          <button className="absolute top-4 right-4 bg-white/20 text-white p-2 rounded-full" onClick={() => setLightboxImage(null)}><X size={20} /></button>
         </div>
       )}
 
-      {/* 1. Balances */}
-      <div className="space-y-2">
-        {/* Header + balance chips en una sola fila */}
+      {/* ── Header ── */}
+      <div className="px-5 pt-5 pb-3 bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center justify-between">
-          <h3 className="text-[15px] font-bold text-zinc-900 dark:text-zinc-100">Balances</h3>
-          <button type="button" onClick={() => setShowInfo(!showInfo)}
-            className="text-zinc-400 hover:text-zinc-600 transition cursor-pointer p-1">
-            <Info size={14} />
+          <div>
+            <h2 className="text-[20px] font-bold text-zinc-900 dark:text-zinc-100">Gastos</h2>
+            <p className="text-[12px] text-zinc-400 mt-0.5">
+              {filterMonth === 'mes' ? 'Este mes' : 'Todos los gastos'}
+            </p>
+          </div>
+          <button type="button" onClick={() => setShowInfo(!showInfo)} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition text-zinc-400">
+            <Info size={18} />
           </button>
         </div>
 
-        {showInfo && (
-          <p className="text-[12px] text-zinc-500 dark:text-zinc-400 leading-relaxed animate-fadeIn">
-            Muestra quién le debe a quién según lo pagado vs. lo asignado. Se minimiza el número de transferencias.
-          </p>
-        )}
+        {/* Chips de filtro */}
+        <div className="flex gap-2 mt-3 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
+          {([
+            { id: 'todos', label: 'Todos' },
+            { id: 'hogar', label: 'Hogar' },
+            { id: 'personal', label: 'Personal' },
+          ] as const).map(f => (
+            <button key={f.id} type="button"
+              onClick={() => setFilterMacro(f.id)}
+              className={`flex items-center gap-1.5 h-8 px-3 rounded-full text-[13px] font-medium shrink-0 transition active:scale-95 ${filterMacro === f.id ? 'bg-indigo-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'}`}>
+              {f.id === 'hogar' && <Home size={13} aria-hidden="true" />}
+              {f.id === 'personal' && <User size={13} aria-hidden="true" />}
+              {f.label}
+            </button>
+          ))}
+          <button type="button"
+            onClick={() => setFilterMonth(m => m === 'mes' ? 'todo' : 'mes')}
+            className={`flex items-center gap-1.5 h-8 px-3 rounded-full text-[13px] font-medium shrink-0 transition active:scale-95 ml-auto ${filterMonth === 'mes' ? 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500'}`}>
+            <Calendar size={13} aria-hidden="true" />
+            {filterMonth === 'mes' ? 'Este mes' : 'Todo'}
+            <ChevronDown size={12} />
+          </button>
+        </div>
+      </div>
 
-
-        {/* Deudas */}
+      {/* ── Balance card ── */}
+      <div className="px-4 pt-3">
         {settlements.length === 0 ? (
-          <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/20 px-4 py-3 text-center">
-            <p className="text-[13px] font-semibold text-emerald-700 dark:text-emerald-300">¡Todo al día! Sin deudas pendientes.</p>
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl px-4 py-3 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-950/40 flex items-center justify-center shrink-0">
+              <Check size={15} className="text-emerald-600" />
+            </div>
+            <div className="flex-1">
+              <p className="text-[13px] font-semibold text-emerald-700 dark:text-emerald-400">¡Todo al día!</p>
+              <p className="text-[11px] text-zinc-400">Sin deudas pendientes</p>
+            </div>
+            {filterMonth === 'mes' && (
+              <div className="text-right">
+                <p className="text-[11px] text-zinc-400">Promedio diario</p>
+                <p className="text-[14px] font-semibold text-zinc-700 dark:text-zinc-300 tabular-nums">S/ {dailyAvg.toFixed(0)}</p>
+              </div>
+            )}
           </div>
         ) : (
-          <div className="space-y-1.5">
-            {settlements.map((sett, idx) => {
-              const debtor = resolvedAllRoommates.find(r => r.id === sett.from);
-              const creditor = resolvedAllRoommates.find(r => r.id === sett.to);
-              const isSettling = settlingIndex === idx;
-
-              const breakdownAll = allAvailableMonths.map(m => {
-                const monthExpenses = expenses.filter(e => getMonthYearStringFromDate(e.date || '') === m);
-                const monthSetts = calculateSettlements(monthExpenses, roommates);
-                const direct = monthSetts.find(s => s.from === sett.from && s.to === sett.to && s.currency === sett.currency);
-                if (direct && direct.amount > 0.01) return { month: m, type: 'owe' as const, amount: direct.amount };
-                const opposite = monthSetts.find(s => s.from === sett.to && s.to === sett.from && s.currency === sett.currency);
-                if (opposite && opposite.amount > 0.01) return { month: m, type: 'favor' as const, amount: opposite.amount };
-                return null;
-              }).filter(Boolean) as { month: string; type: 'owe' | 'favor'; amount: number }[];
-
-              const breakdown = showAllBreakdown[idx] ? breakdownAll : breakdownAll.slice(0, 3);
-
-              return (
-                <div key={idx} className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-100 dark:border-zinc-800 overflow-hidden">
-                  <div className="px-3 py-3 flex items-center gap-2">
-                    {/* Debtor → Creditor */}
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-[13px] font-semibold px-2 py-1 rounded-lg text-white" style={{ backgroundColor: debtor?.color }}>
-                        {debtor?.name}
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl overflow-hidden">
+            {/* Balance summary row */}
+            <div className="px-4 py-3 border-b border-zinc-50 dark:border-zinc-800">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[12px] font-medium text-zinc-400">Balances pendientes</p>
+                {filterMonth === 'mes' && (
+                  <p className="text-[12px] text-zinc-400">Prom. diario: <span className="font-semibold text-zinc-700 dark:text-zinc-300">S/ {dailyAvg.toFixed(0)}</span></p>
+                )}
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {settlements.map((sett, idx) => {
+                  const debtor = resolvedAllRoommates.find(r => r.id === sett.from);
+                  const creditor = resolvedAllRoommates.find(r => r.id === sett.to);
+                  return (
+                    <div key={idx} className="flex items-center gap-1.5 bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 rounded-xl px-3 py-2">
+                      <span className="text-[12px] font-semibold" style={{ color: debtor?.color }}>{debtor?.name}</span>
+                      <ArrowRight size={10} className="text-zinc-400" />
+                      <span className="text-[12px] font-semibold" style={{ color: creditor?.color }}>{creditor?.name}</span>
+                      <span className="text-[13px] font-bold text-rose-600 dark:text-rose-400 tabular-nums ml-1">
+                        {sett.currency === 'USD' ? '$' : 'S/'}{sett.amount.toFixed(2)}
                       </span>
-                      <ArrowRight size={11} className="text-zinc-300 dark:text-zinc-600" />
-                      <span className="text-[13px] font-semibold px-2 py-1 rounded-lg text-white" style={{ backgroundColor: creditor?.color }}>
-                        {creditor?.name}
-                      </span>
+                      <button type="button"
+                        onClick={() => setSettlingIndex(settlingIndex === idx ? null : idx)}
+                        className="ml-1 h-6 px-2 rounded-lg bg-indigo-600 text-white text-[11px] font-semibold active:scale-95 transition">
+                        Pagar
+                      </button>
                     </div>
-                    {/* Amount */}
-                    <span className="flex-1 text-[15px] font-black text-rose-500 font-mono whitespace-nowrap text-center">
-                      {sett.currency === 'USD' ? '$' : 'S/'}{sett.amount.toFixed(2)}
-                    </span>
-                    {/* Button */}
-                    <button type="button" onClick={() => setSettlingIndex(isSettling ? null : idx)}
-                      className={`h-8 px-4 rounded-lg text-[12px] font-semibold transition active:scale-95 cursor-pointer shrink-0 ${isSettling ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500' : 'bg-indigo-600 text-white'}`}>
-                      {isSettling ? 'Cancelar' : 'Pagar'}
-                    </button>
-                  </div>
+                  );
+                })}
+              </div>
+            </div>
 
-                  {isSettling && (
-                    <div className="border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 px-3 py-3 space-y-2 animate-fadeIn">
+            {/* Confirmar liquidación */}
+            {settlingIndex !== null && (
+              <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 animate-fadeIn">
+                {(() => {
+                  const sett = settlements[settlingIndex];
+                  const debtor = resolvedAllRoommates.find(r => r.id === sett.from);
+                  const creditor = resolvedAllRoommates.find(r => r.id === sett.to);
+                  return (
+                    <div className="space-y-2">
                       <p className="text-[12px] text-zinc-600 dark:text-zinc-400">
-                        ¿Confirmar que <strong className="text-zinc-900 dark:text-zinc-100">{debtor?.name}</strong> pagó <strong className="text-zinc-900 dark:text-zinc-100">{sett.currency === 'USD' ? '$' : 'S/'}{sett.amount.toFixed(2)}</strong> a <strong className="text-zinc-900 dark:text-zinc-100">{creditor?.name}</strong>?
+                        ¿Confirmar que <strong style={{ color: debtor?.color }}>{debtor?.name}</strong> pagó <strong className="text-zinc-900 dark:text-zinc-100">{sett.currency === 'USD' ? '$' : 'S/'}{sett.amount.toFixed(2)}</strong> a <strong style={{ color: creditor?.color }}>{creditor?.name}</strong>?
                       </p>
-                      <button type="button" onClick={() => handleSettle(sett)}
-                        className="w-full h-9 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-semibold text-[13px] rounded-xl transition flex items-center justify-center gap-2 cursor-pointer">
-                        <Check size={13} /> Confirmar liquidación
-                      </button>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => handleSettle(sett)}
+                          className="flex-1 h-9 bg-emerald-600 text-white font-semibold text-[13px] rounded-xl transition active:scale-[0.98] flex items-center justify-center gap-1.5">
+                          <Check size={13} /> Confirmar
+                        </button>
+                        <button type="button" onClick={() => setSettlingIndex(null)}
+                          className="h-9 px-4 bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 text-[13px] font-medium rounded-xl">
+                          Cancelar
+                        </button>
+                      </div>
                     </div>
-                  )}
+                  );
+                })()}
+              </div>
+            )}
 
-                  {breakdownAll.length > 1 && (
-                    <div className="border-t border-dashed border-zinc-100 dark:border-zinc-800">
-                      <button type="button" onClick={() => setShowAllBreakdown(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                        className="w-full px-3 py-1.5 text-[11px] text-zinc-400 hover:text-indigo-500 flex items-center justify-between transition cursor-pointer">
-                        <span>Desglose por mes</span><span>{showAllBreakdown[idx] ? '▲' : '▼'}</span>
-                      </button>
-                      {showAllBreakdown[idx] && (
-                        <div className="px-3 pb-2 space-y-1 animate-fadeIn">
-                          {breakdown.map((item, bidx) => (
-                            <div key={bidx} className="flex items-center justify-between text-[11px]">
-                              <span className="text-zinc-500">{item.month}</span>
-                              <span className={`font-mono font-semibold ${item.type === 'owe' ? 'text-rose-500' : 'text-emerald-500'}`}>
-                                {item.type === 'owe' ? '' : '+'}{sett.currency === 'USD' ? '$' : 'S/'}{item.amount.toFixed(2)}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {settlementHistory.length > 0 && (
-          <div>
-            <button type="button" onClick={() => setShowSettlementHistory(!showSettlementHistory)}
-              className="flex items-center gap-1.5 text-[12px] text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition cursor-pointer py-1">
-              <Check size={12} className="text-emerald-500" />
-              <span>Liquidaciones ({settlementHistory.length})</span>
-              <span>{showSettlementHistory ? '▲' : '▼'}</span>
-            </button>
+            {settlementHistory.length > 0 && (
+              <button type="button" onClick={() => setShowSettlementHistory(!showSettlementHistory)}
+                className="w-full px-4 py-2.5 flex items-center gap-1.5 text-[12px] text-zinc-400 hover:text-indigo-500 transition border-t border-zinc-50 dark:border-zinc-800">
+                <Check size={12} className="text-emerald-500" />
+                Liquidaciones anteriores ({settlementHistory.length})
+                <ChevronDown size={12} className={`ml-auto transition-transform ${showSettlementHistory ? 'rotate-180' : ''}`} />
+              </button>
+            )}
             {showSettlementHistory && (
-              <div className="space-y-1 mt-1 animate-fadeIn">
+              <div className="px-4 pb-3 space-y-1.5 animate-fadeIn">
                 {settlementHistory.map(rec => {
                   const fromName = resolvedAllRoommates.find(r => r.id === rec.fromId)?.name || rec.fromId;
                   const toName = resolvedAllRoommates.find(r => r.id === rec.toId)?.name || rec.toId;
                   return (
-                    <div key={rec.id} className="flex items-center justify-between px-3 py-2 bg-emerald-50 dark:bg-emerald-950/20 rounded-xl text-[12px]">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-medium text-zinc-700 dark:text-zinc-300">{fromName}</span>
-                        <ArrowRight size={11} className="text-zinc-400" />
-                        <span className="font-medium text-zinc-700 dark:text-zinc-300">{toName}</span>
+                    <div key={rec.id} className="flex items-center justify-between text-[12px] py-1.5 border-t border-zinc-50 dark:border-zinc-800">
+                      <div className="flex items-center gap-1 text-zinc-500">
+                        <span className="font-medium">{fromName}</span>
+                        <ArrowRight size={10} />
+                        <span className="font-medium">{toName}</span>
                         <span className="text-zinc-400">· {rec.date}</span>
                       </div>
-                      <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                        {rec.currency === 'USD' ? '$' : 'S/'}{rec.amount.toFixed(2)}
-                      </span>
+                      <span className="font-mono font-bold text-emerald-600">{rec.currency === 'USD' ? '$' : 'S/'}{rec.amount.toFixed(2)}</span>
                     </div>
                   );
                 })}
@@ -744,6 +782,123 @@ export default function ExpensesTab({
           </div>
         )}
       </div>
+
+      {/* ── Lista de gastos agrupada por fecha ── */}
+      <div className="px-4 pt-3 space-y-4">
+        {groupedByDate.length === 0 ? (
+          <div className="py-16 text-center">
+            <p className="text-[15px] font-medium text-zinc-400">Sin gastos registrados</p>
+            <p className="text-[13px] text-zinc-300 dark:text-zinc-600 mt-1">Toca + para agregar uno</p>
+          </div>
+        ) : (
+          groupedByDate.map(group => (
+            <div key={group.label}>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2 px-1">{group.label}</p>
+              <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 overflow-hidden">
+                {group.items.map((expense, i) => {
+                  const CatIcon = CATEGORY_ICON_MAP[expense.category] || MoreHorizontal;
+                  const catColor = {
+                    alquiler: '#4F46E5', servicio: '#EC4899', comida: '#F59E0B',
+                    limpieza: '#10B981', membresia: '#3B82F6', auto: '#8B5CF6',
+                    salud: '#EF4444', ropa: '#F97316', deporte: '#06B6D4', otros: '#A1A1AA',
+                  }[expense.category] || '#A1A1AA';
+                  const payer = resolvedAllRoommates.find(r => r.id === expense.paidBy);
+                  const isOpen = expandedExpenses[expense.id];
+                  const isMenuOpen = openMenuExpenseId === expense.id;
+                  const soles = expense.currency === 'USD' ? expense.amount * (expense.exchangeRate || 3.8) : expense.amount;
+
+                  return (
+                    <div key={expense.id} className={i > 0 ? 'border-t border-zinc-50 dark:border-zinc-800' : ''}>
+                      <button
+                        type="button"
+                        className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-zinc-50 dark:active:bg-zinc-800 transition"
+                        onClick={() => toggleExpenseDetails(expense.id)}
+                      >
+                        {/* Category icon */}
+                        <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0" style={{ background: catColor + '18' }}>
+                          <CatIcon size={18} style={{ color: catColor }} aria-hidden="true" />
+                        </div>
+
+                        {/* Title + subtitle */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[14px] font-semibold text-zinc-900 dark:text-zinc-100 truncate">{expense.title}</p>
+                          <p className="text-[12px] text-zinc-400 mt-0.5">
+                            {expense.macroCategory === 'hogar' ? 'Hogar' : 'Personal'} · {getCategoryLabel(expense.category)}
+                          </p>
+                        </div>
+
+                        {/* Amount + payer */}
+                        <div className="text-right shrink-0">
+                          <p className="text-[15px] font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">
+                            S/ {soles.toFixed(2)}
+                          </p>
+                          {payer && (
+                            <p className="text-[11px] font-semibold mt-0.5" style={{ color: payer.color }}>
+                              Pagó {payer.name}
+                            </p>
+                          )}
+                        </div>
+                      </button>
+
+                      {/* Expanded detail */}
+                      {isOpen && (
+                        <div className="px-4 pb-3 pt-1 border-t border-zinc-50 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/30 animate-fadeIn">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {/* Split breakdown */}
+                            <div className="flex-1 min-w-0 space-y-1">
+                              {roommates.map(r => {
+                                const share = expense.calculatedShares?.[r.id] || 0;
+                                if (share <= 0) return null;
+                                const shareRate = expense.currency === 'USD' ? (expense.exchangeRate || 3.8) : 1;
+                                return (
+                                  <div key={r.id} className="flex items-center justify-between text-[12px]">
+                                    <div className="flex items-center gap-1.5">
+                                      <div className="w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold shrink-0" style={{ background: r.color }}>{r.name.charAt(0)}</div>
+                                      <span className="text-zinc-600 dark:text-zinc-400">{r.name}</span>
+                                    </div>
+                                    <span className="font-mono font-semibold text-zinc-700 dark:text-zinc-300">S/ {(share * shareRate).toFixed(2)}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            {/* Actions */}
+                            <div className="flex gap-1.5 shrink-0">
+                              {expense.receiptImage && (
+                                <button type="button" onClick={() => setLightboxImage(expense.receiptImage!)}
+                                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-500">
+                                  <Camera size={13} />
+                                </button>
+                              )}
+                              <button type="button" onClick={() => startEdit(expense)}
+                                className="w-8 h-8 flex items-center justify-center rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-indigo-500">
+                                <Pencil size={13} />
+                              </button>
+                              <button type="button" onClick={() => onRemoveExpense(expense.id)}
+                                className="w-8 h-8 flex items-center justify-center rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-rose-500">
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* FAB */}
+      <button
+        type="button"
+        onClick={handleOpenNewExpenseForm}
+        className="fixed bottom-24 right-5 w-14 h-14 rounded-full bg-indigo-600 text-white shadow-lg shadow-indigo-500/40 flex items-center justify-center active:scale-90 transition z-40"
+        aria-label="Nuevo gasto"
+      >
+        <Plus size={24} />
+      </button>
 
       <div className="space-y-8">
         {/* Modal / Dialog for registering or editing expense */}

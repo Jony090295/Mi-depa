@@ -723,102 +723,109 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
           const totalIncome = roommates.reduce((s, r) => s + r.income, 0);
 
           return (
-            <div className="space-y-4">
+            <div className="space-y-4" style={{ paddingBottom: 24 }}>
 
               {/* Hero */}
               <button
                 onClick={() => setActiveTab('expenses')}
-                className="w-full relative overflow-hidden bg-indigo-600 dark:bg-indigo-700 rounded-3xl p-5 text-left active:scale-[0.98] transition-transform shadow-lg shadow-indigo-600/20"
+                className="w-full relative overflow-hidden rounded-3xl p-6 text-left active:scale-[0.98] transition-transform"
+                style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #6D28D9 100%)' }}
               >
-                <div className="absolute -top-6 -right-6 w-36 h-36 bg-white/10 rounded-full blur-3xl" />
+                {/* Sparkline decorativa */}
+                <svg className="absolute right-4 bottom-4 opacity-20" width="100" height="48" viewBox="0 0 100 48" fill="none">
+                  <polyline points="0,40 20,32 40,36 55,18 70,22 85,10 100,14" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                </svg>
                 <div className="relative">
                   <p className="text-[11px] font-bold uppercase tracking-widest text-indigo-200">{currentMonthStr}</p>
-                  <p className="text-[36px] font-extrabold text-white leading-none mt-0.5 tabular-nums">
+                  <p className="text-[38px] font-extrabold text-white leading-none mt-1 tabular-nums">
                     S/ {totalSharedSpentThisMonth.toFixed(0)}
                   </p>
-                  <p className="text-[12px] text-indigo-200 mt-1">gastado este mes</p>
-                  <p className="mt-4 text-[12px] font-semibold text-white/70 flex items-center gap-1">
+                  <p className="text-[13px] text-indigo-200 mt-1">gastado este mes</p>
+                  <p className="mt-5 text-[12px] font-semibold text-white/60 flex items-center gap-1">
                     Ver gastos registrados <ArrowRight size={12} />
                   </p>
                 </div>
               </button>
 
               {/* Pendientes */}
-              <div className="space-y-1.5">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 px-1">Pendiente</p>
+              {(itemsMissingCount > 0 || pendingDebtsCount > 0) && (
+                <div className="space-y-2">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 px-1">Pendiente</p>
 
-                {itemsMissingCount > 0 && (
-                  <button onClick={() => setActiveTab('shopping')}
-                    className="w-full flex items-center gap-3 px-4 py-3 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 active:scale-[0.98] transition text-left shadow-sm">
-                    <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center shrink-0">
-                      <ShoppingCart size={15} className="text-amber-500" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-semibold text-zinc-900 dark:text-zinc-100">{itemsMissingCount} {itemsMissingCount === 1 ? 'item' : 'items'} en lista de compras</p>
-                      <p className="text-[11px] text-zinc-400">Lista pendiente de completar</p>
-                    </div>
-                    <ArrowRight size={14} className="text-zinc-300 dark:text-zinc-600 shrink-0" />
-                  </button>
-                )}
+                  {itemsMissingCount > 0 && (
+                    <button onClick={() => setActiveTab('shopping')}
+                      className="w-full flex items-center gap-3 px-4 py-3.5 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 active:scale-[0.98] transition text-left">
+                      <div className="w-9 h-9 rounded-2xl bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center shrink-0">
+                        <ShoppingCart size={16} className="text-amber-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[14px] font-semibold text-zinc-900 dark:text-zinc-100">{itemsMissingCount} {itemsMissingCount === 1 ? 'item' : 'items'} en lista de compras</p>
+                        <p className="text-[12px] text-zinc-400 mt-0.5">Lista pendiente de completar</p>
+                      </div>
+                      <ChevronRight size={16} className="text-zinc-300 dark:text-zinc-600 shrink-0" />
+                    </button>
+                  )}
 
-                {pendingDebtsCount > 0 && (
-                  <button onClick={() => setActiveTab('expenses')}
-                    className="w-full flex items-center gap-3 px-4 py-3 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 active:scale-[0.98] transition text-left shadow-sm">
-                    <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center shrink-0">
-                      <Split size={15} className="text-indigo-500" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-semibold text-zinc-900 dark:text-zinc-100">{pendingDebtsCount} {pendingDebtsCount === 1 ? 'deuda' : 'deudas'} sin liquidar</p>
-                      <p className="text-[11px] text-zinc-400">Ver balances en Dividir</p>
-                    </div>
-                    <ArrowRight size={14} className="text-zinc-300 dark:text-zinc-600 shrink-0" />
-                  </button>
-                )}
-              </div>
+                  {pendingDebtsCount > 0 && (
+                    <button onClick={() => setActiveTab('expenses')}
+                      className="w-full flex items-center gap-3 px-4 py-3.5 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 active:scale-[0.98] transition text-left">
+                      <div className="w-9 h-9 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center shrink-0">
+                        <Split size={16} className="text-indigo-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[14px] font-semibold text-zinc-900 dark:text-zinc-100">{pendingDebtsCount} {pendingDebtsCount === 1 ? 'deuda' : 'deudas'} sin liquidar</p>
+                        <p className="text-[12px] text-zinc-400 mt-0.5">Ver balances en Gastos</p>
+                      </div>
+                      <ChevronRight size={16} className="text-zinc-300 dark:text-zinc-600 shrink-0" />
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Roommates */}
               <div className="space-y-2">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 px-1">Roommates</p>
-                <div className="space-y-1.5">
-                  {roommates.map(r => {
+                <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 overflow-hidden">
+                  {roommates.map((r, idx) => {
                     const pct = totalIncome > 0 ? (r.income / totalIncome * 100) : 0;
                     const isEditing = editingRoommateId === r.id;
                     return (
-                      <div key={r.id} className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 overflow-hidden">
-                        <div className="flex items-center gap-3 px-4 py-3">
-                          <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-[13px] font-bold shrink-0"
+                      <div key={r.id} className={idx > 0 ? 'border-t border-zinc-50 dark:border-zinc-800' : ''}>
+                        <div className="flex items-center gap-3 px-4 py-3.5">
+                          {/* Avatar redondo */}
+                          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-[15px] font-bold shrink-0"
                             style={{ backgroundColor: r.color }}>
-                            {r.name.charAt(0)}
+                            {r.name.charAt(0).toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-[14px] font-semibold text-zinc-900 dark:text-zinc-100">{r.name}</p>
-                            <p className="text-[11px] text-zinc-400">S/ {r.income.toLocaleString()} · {pct.toFixed(0)}% del ingreso total</p>
+                            <p className="text-[12px] text-zinc-400 mt-0.5">S/ {r.income.toLocaleString()} · {pct.toFixed(0)}% del ingreso total</p>
                           </div>
                           {r.userId ? (
-                            <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded-full shrink-0">Activo</span>
+                            <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/30 px-2.5 py-1 rounded-full shrink-0">Activo</span>
                           ) : (
                             <button type="button" onClick={() => {
                               navigator.clipboard.writeText(`${window.location.origin}?join=${aptConfig!.inviteCode}`);
                               setCodeCopied(true); setTimeout(() => setCodeCopied(false), 2000);
-                            }} className="flex items-center gap-1 text-[10px] font-semibold text-indigo-500 shrink-0">
+                            }} className="flex items-center gap-1 text-[11px] font-semibold text-indigo-500 bg-indigo-50 dark:bg-indigo-950/30 px-2.5 py-1 rounded-full shrink-0 border border-indigo-100 dark:border-indigo-900/30">
                               {codeCopied ? <Check size={10} className="text-emerald-500" /> : <Copy size={10} />}
                               {codeCopied ? 'Copiado' : 'Invitar'}
                             </button>
                           )}
                           <button type="button" onClick={() => setEditingRoommateId(isEditing ? null : r.id)}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:text-indigo-500 transition active:scale-90 cursor-pointer">
-                            <Pencil size={12} />
+                            className="w-8 h-8 flex items-center justify-center rounded-xl bg-zinc-50 dark:bg-zinc-800 text-zinc-400 hover:text-indigo-500 transition active:scale-90 cursor-pointer">
+                            <Pencil size={14} />
                           </button>
                           <button type="button" onClick={() => {
                             if (roommates.length <= 1) return;
                             handleUpdateRoommates(roommates.filter(x => x.id !== r.id));
                           }}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:text-rose-500 transition active:scale-90 cursor-pointer">
-                            <Trash2 size={12} />
+                            className="w-8 h-8 flex items-center justify-center rounded-xl bg-zinc-50 dark:bg-zinc-800 text-zinc-400 hover:text-rose-500 transition active:scale-90 cursor-pointer">
+                            <Trash2 size={14} />
                           </button>
                         </div>
                         {isEditing && (
-                          <div className="border-t border-zinc-100 dark:border-zinc-800 px-4 py-3 flex gap-2 animate-fadeIn">
+                          <div className="border-t border-zinc-100 dark:border-zinc-800 px-4 py-3 flex gap-2 animate-fadeIn bg-zinc-50 dark:bg-zinc-800/50">
                             <div className="flex-1 relative">
                               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-[12px]">S/</span>
                               <input type="number" inputMode="decimal" defaultValue={r.income}
@@ -827,10 +834,10 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                                   setEditingRoommateId(null);
                                 }}
                                 autoFocus
-                                className="w-full pl-7 pr-3 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[13px] font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                className="w-full pl-7 pr-3 h-10 rounded-xl bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-[14px] font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-zinc-200 dark:border-zinc-600" />
                             </div>
                             <button type="button" onClick={() => setEditingRoommateId(null)}
-                              className="h-9 px-3 rounded-xl bg-indigo-600 text-white text-[12px] font-semibold cursor-pointer">
+                              className="h-10 px-4 rounded-xl bg-indigo-600 text-white text-[13px] font-semibold cursor-pointer">
                               OK
                             </button>
                           </div>
@@ -887,12 +894,12 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
               {/* Configuración del depa */}
               <div className="rounded-2xl border border-zinc-100 dark:border-zinc-800 overflow-hidden bg-white dark:bg-zinc-900">
                 <button type="button" onClick={() => setHomeConfigOpen(o => !o)}
-                  className="w-full flex items-center justify-between px-4 py-3 text-left cursor-pointer active:bg-zinc-50 dark:active:bg-zinc-800 transition">
-                  <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
-                    <Settings size={14} />
-                    <span className="text-[13px] font-medium">Configuración del depa</span>
+                  className="w-full flex items-center justify-between px-4 py-3.5 text-left cursor-pointer active:bg-zinc-50 dark:active:bg-zinc-800 transition">
+                  <div className="flex items-center gap-2.5 text-zinc-700 dark:text-zinc-300">
+                    <Settings size={16} className="text-zinc-400" />
+                    <span className="text-[14px] font-medium">Configuración del depa</span>
                   </div>
-                  <ChevronRight size={14} className={`text-zinc-400 transition-transform ${homeConfigOpen ? 'rotate-90' : ''}`} />
+                  <ChevronRight size={16} className={`text-zinc-300 transition-transform ${homeConfigOpen ? 'rotate-90' : ''}`} />
                 </button>
 
                 {homeConfigOpen && (
