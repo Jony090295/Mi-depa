@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { BarChart, Bar, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { RecurrentBill, Roommate, Expense } from '../types';
 import {
-  Download, SlidersHorizontal, TrendingUp, TrendingDown, Minus,
+  Download, TrendingUp, TrendingDown, Minus,
   Home, Zap, ShoppingCart, Droplet, CreditCard, Car, Heart, Tag, Activity,
   MoreHorizontal, RefreshCw, AlertTriangle, ChevronRight, Lightbulb,
 } from 'lucide-react';
@@ -110,7 +110,8 @@ export default function Reportes({ bills, roommates, expenses, rentExchangeRate 
   const rate = rentExchangeRate || 3.80;
   const [activeTab, setActiveTab] = useState<'resumen' | 'insights'>('resumen');
   const [periodo, setPeriodo] = useState<'1m' | '3m' | '6m' | 'todo'>('3m');
-  const [filterType, setFilterType] = useState<'hogar' | 'pagado' | null>(null);
+  const [filterType, setFilterType] = useState<'hogar' | 'personal' | null>(null);
+  const [openCat, setOpenCat] = useState<string | null>(null);
   const [showPeriodoMenu, setShowPeriodoMenu] = useState(false);
 
   // ── Filtered expenses ──
@@ -121,11 +122,7 @@ export default function Reportes({ bills, roommates, expenses, rentExchangeRate 
       const d = new Date(e.date + 'T00:00:00');
       if (d < cutoff) return false;
       if (filterType === 'hogar' && e.macroCategory !== 'hogar') return false;
-      if (filterType === 'pagado') {
-        // "Pagado por mí" — first roommate as proxy (no auth in this view)
-        const me = roommates[0];
-        if (!me || e.paidBy !== me.id) return false;
-      }
+      if (filterType === 'personal' && e.macroCategory !== 'personal') return false;
       return true;
     });
   }, [expenses, cutoff, filterType, roommates]);
@@ -237,39 +234,25 @@ export default function Reportes({ bills, roommates, expenses, rentExchangeRate 
   const savingOpp = totalGastos > 0 ? Math.round((top2Total / totalGastos) * 0.1 * totalGastos) : 0;
 
   const FILTER_CHIPS = [
-    { id: 'hogar' as const, label: 'Del hogar' },
-    { id: 'pagado' as const, label: 'Pagado por mí' },
+    { id: 'hogar' as const, label: 'Hogar' },
+    { id: 'personal' as const, label: 'Personal' },
   ];
 
   return (
     <div className="max-w-xl mx-auto" style={{ background: '#F7F7FC', minHeight: '100vh', paddingBottom: 96 }}>
 
       {/* ── Header ── */}
-      <div className="bg-white px-5 pt-5 pb-0" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: '#4F46E5' }}>
-            <Home size={18} color="white" />
-          </div>
-          <div className="flex-1">
-            <h1 className="text-[18px] font-bold" style={{ color: '#1A1A2E' }}>Reportes</h1>
-            <p className="text-[12px]" style={{ color: '#8D90A5' }}>Análisis de gastos</p>
-          </div>
+      <div className="bg-white px-4 pt-4 pb-0" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="text-[17px] font-bold" style={{ color: '#1A1A2E' }}>Reportes</h1>
           <button
             type="button"
             onClick={() => downloadCSV(filteredExpenses, rate, roommates)}
-            className="w-9 h-9 flex items-center justify-center rounded-xl transition hover:bg-zinc-100 active:scale-90"
+            className="w-8 h-8 flex items-center justify-center rounded-xl transition hover:bg-zinc-100 active:scale-90"
             style={{ border: '1px solid #E5E7EB' }}
             aria-label="Exportar CSV"
           >
-            <Download size={16} style={{ color: '#6B7280' }} />
-          </button>
-          <button
-            type="button"
-            className="w-9 h-9 flex items-center justify-center rounded-xl transition hover:bg-zinc-100 active:scale-90"
-            style={{ border: '1px solid #E5E7EB' }}
-            aria-label="Filtros"
-          >
-            <SlidersHorizontal size={16} style={{ color: '#6B7280' }} />
+            <Download size={15} style={{ color: '#6B7280' }} />
           </button>
         </div>
 
@@ -280,7 +263,7 @@ export default function Reportes({ bills, roommates, expenses, rentExchangeRate 
               key={t}
               type="button"
               onClick={() => setActiveTab(t)}
-              className="px-5 py-2.5 text-[14px] font-medium transition relative"
+              className="px-5 py-2.5 text-[14px] font-medium transition"
               style={{
                 color: activeTab === t ? '#4F46E5' : '#9CA3AF',
                 borderBottom: activeTab === t ? '2px solid #4F46E5' : '2px solid transparent',
@@ -308,7 +291,7 @@ export default function Reportes({ bills, roommates, expenses, rentExchangeRate 
           </button>
           {showPeriodoMenu && (
             <div
-              className="absolute top-full left-0 mt-1 bg-white rounded-2xl shadow-lg z-20 overflow-hidden"
+              className="absolute top-full left-0 mt-1 bg-white rounded-2xl shadow-xl z-[200] overflow-hidden"
               style={{ border: '1px solid #E5E7EB', minWidth: 180 }}
             >
               {(['1m', '3m', '6m', 'todo'] as const).map(p => (
@@ -440,42 +423,67 @@ export default function Reportes({ bills, roommates, expenses, rentExchangeRate 
                 <p className="text-[15px] font-semibold" style={{ color: '#1A1A2E' }}>Por categoría</p>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {byCategory.map(c => {
                   const { Icon } = c.meta;
                   const pct = totalGastos > 0 ? Math.round((c.total / totalGastos) * 100) : 0;
+                  const isOpen = openCat === c.key;
+                  const catExpenses = filteredExpenses.filter(e => (e.category || 'otros') === c.key);
                   return (
                     <div key={c.key}>
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: c.meta.bg }}>
-                          <Icon size={16} color={c.meta.color} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-[13px] font-medium truncate" style={{ color: '#1A1A2E' }}>{c.meta.label}</span>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className="text-[14px] font-semibold tabular-nums" style={{ color: '#1A1A2E' }}>{fmtS(c.total)}</span>
-                              <span className="text-[12px] w-8 text-right" style={{ color: '#9CA3AF' }}>{pct}%</span>
-                              {c.trend !== null && (
-                                <div className="flex items-center gap-0.5 w-12 justify-end">
-                                  {c.trend > 0
-                                    ? <TrendingUp size={11} color="#EF4444" />
-                                    : c.trend < 0
-                                    ? <TrendingDown size={11} color="#10B981" />
-                                    : <Minus size={11} color="#9CA3AF" />
-                                  }
-                                  <span className="text-[11px] font-medium" style={{ color: c.trend > 0 ? '#EF4444' : c.trend < 0 ? '#10B981' : '#9CA3AF' }}>
-                                    {c.trend > 0 ? '+' : ''}{c.trend}%
-                                  </span>
-                                </div>
-                              )}
+                      <button
+                        type="button"
+                        onClick={() => setOpenCat(isOpen ? null : c.key)}
+                        className="w-full text-left"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: c.meta.bg }}>
+                            <Icon size={16} color={c.meta.color} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[13px] font-medium truncate" style={{ color: '#1A1A2E' }}>{c.meta.label}</span>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="text-[14px] font-semibold tabular-nums" style={{ color: '#1A1A2E' }}>{fmtS(c.total)}</span>
+                                <span className="text-[12px] w-7 text-right" style={{ color: '#9CA3AF' }}>{pct}%</span>
+                                {c.trend !== null && (
+                                  <div className="flex items-center gap-0.5 w-10 justify-end">
+                                    {c.trend > 0 ? <TrendingUp size={11} color="#EF4444" /> : c.trend < 0 ? <TrendingDown size={11} color="#10B981" /> : <Minus size={11} color="#9CA3AF" />}
+                                    <span className="text-[11px] font-medium" style={{ color: c.trend > 0 ? '#EF4444' : c.trend < 0 ? '#10B981' : '#9CA3AF' }}>
+                                      {c.trend > 0 ? '+' : ''}{c.trend}%
+                                    </span>
+                                  </div>
+                                )}
+                                <ChevronRight size={13} color="#D1D5DB" style={{ transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+                              </div>
+                            </div>
+                            <div className="mt-1.5 h-1.5 rounded-full overflow-hidden" style={{ background: '#F3F4F6' }}>
+                              <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: c.meta.color }} />
                             </div>
                           </div>
-                          <div className="mt-1.5 h-1.5 rounded-full overflow-hidden" style={{ background: '#F3F4F6' }}>
-                            <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: c.meta.color }} />
-                          </div>
                         </div>
-                      </div>
+                      </button>
+
+                      {isOpen && (
+                        <div className="mt-2 ml-12 rounded-xl overflow-hidden" style={{ border: '1px solid #F3F4F6' }}>
+                          {catExpenses.sort((a, b) => b.date.localeCompare(a.date)).map((e, i) => {
+                            const who = roommates.find(r => r.id === e.paidBy);
+                            const soles = toSoles(e.amount, e.currency, e.exchangeRate || rate);
+                            return (
+                              <div key={e.id} className="flex items-center gap-3 px-3 py-2 bg-white" style={{ borderTop: i > 0 ? '1px solid #F9FAFB' : undefined }}>
+                                <span className="text-[11px] tabular-nums shrink-0" style={{ color: '#9CA3AF' }}>{e.date.slice(5).replace('-', '/')}</span>
+                                <span className="flex-1 text-[12px] truncate" style={{ color: '#374151' }}>{e.title || '(sin nombre)'}</span>
+                                {who && (
+                                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0" style={{ background: who.color }}>
+                                    {who.name.charAt(0)}
+                                  </div>
+                                )}
+                                <span className="text-[12px] font-medium tabular-nums shrink-0" style={{ color: '#1A1A2E' }}>{fmtS(soles)}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
