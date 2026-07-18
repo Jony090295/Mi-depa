@@ -79,6 +79,10 @@ export default function ExpensesTab({
   const [macroCategory, setMacroCategory] = useState<'hogar' | 'personal'>('hogar');
   const [showNewCatInput, setShowNewCatInput] = useState(false);
   const [newCatName, setNewCatName] = useState('');
+  const [showSplitConfig, setShowSplitConfig] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showAllCategories, setShowAllCategories] = useState(false);
+  const [showRecurringPicker, setShowRecurringPicker] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const getMonthYearStringFromDate = (dateStr: string) => {
@@ -165,6 +169,10 @@ export default function ExpensesTab({
     setAssociatedBillId(expense.recurrentBillId || '');
     setRecurrentBillMonth(expense.recurrentBillMonth || getMonthYearStringFromDate(expense.date || new Date().toISOString().split('T')[0]));
     setMacroCategory(expense.macroCategory ?? 'hogar');
+    setShowSplitConfig(false);
+    setShowDatePicker(false);
+    setShowAllCategories(false);
+    setShowRecurringPicker(false);
     setIsModalOpen(true);
   };
 
@@ -401,6 +409,10 @@ export default function ExpensesTab({
     setMacroCategory('hogar');
     setShowNewCatInput(false);
     setNewCatName('');
+    setShowSplitConfig(false);
+    setShowDatePicker(false);
+    setShowAllCategories(false);
+    setShowRecurringPicker(false);
     const defaultPercs2 = Object.keys(defaultSplitPercentages).length > 0
       ? Object.fromEntries(Object.entries(defaultSplitPercentages).map(([k, v]) => [k, String(v)]))
       : (() => { const p: Record<string,string> = {}; const eq = Math.round((100/roommates.length)*100)/100; roommates.forEach(r => { p[r.id] = String(eq); }); return p; })();
@@ -731,48 +743,54 @@ export default function ExpensesTab({
                 className="overflow-y-auto flex-1 min-h-0 px-6 py-4 space-y-5"
                 style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
               >
-                {/* Macro categoría */}
-                <div>
-                  <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Tipo de gasto</label>
-                  <div className="mt-2 flex gap-2">
-                    {([
-                      { value: 'hogar', label: '🏠 Hogar', desc: 'Gasto del hogar o compartido' },
-                      { value: 'personal', label: '👤 Personal', desc: 'Gasto solo tuyo' },
-                    ] as const).map(opt => (
-                      <button key={opt.value} type="button"
-                        onClick={() => {
-                          setMacroCategory(opt.value);
-                          setShowNewCatInput(false);
-                          setNewCatName('');
-                          if (opt.value === 'personal') {
-                            setCategory(PERSONAL_DEFAULT_CATEGORIES[0]);
-                            setSplitType('porcentaje');
-                            const percs: Record<string, string> = {};
-                            roommates.forEach(r => { percs[r.id] = r.id === paidBy ? '100' : '0'; });
-                            setCustomPercentages(percs);
-                          } else {
-                            setCategory(HOGAR_DEFAULT_CATEGORIES[0]);
-                            setSplitType(defaultSplitType);
-                            const defaultPercs = Object.keys(defaultSplitPercentages).length > 0
-                              ? Object.fromEntries(Object.entries(defaultSplitPercentages).map(([k, v]) => [k, String(v)]))
-                              : Object.fromEntries(roommates.map(r => [r.id, String(Math.round(100 / roommates.length))]));
-                            setCustomPercentages(defaultPercs);
-                          }
-                        }}
-                        className={`flex-1 flex flex-col items-center py-2.5 px-3 rounded-2xl border-2 transition-all text-center ${macroCategory === opt.value ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/30' : 'border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800'}`}>
-                        <span className="text-[13px] font-bold text-zinc-800 dark:text-zinc-100">{opt.label}</span>
-                        <span className="text-[10px] text-zinc-400 mt-0.5">{opt.desc}</span>
-                      </button>
-                    ))}
-                  </div>
+
+                {/* 1. Tipo de gasto + link cargar recurrente */}
+                <div className="flex items-center gap-2">
+                  {([
+                    { value: 'hogar', label: '🏠 Hogar' },
+                    { value: 'personal', label: '👤 Personal' },
+                  ] as const).map(opt => (
+                    <button key={opt.value} type="button"
+                      onClick={() => {
+                        setMacroCategory(opt.value);
+                        setShowNewCatInput(false);
+                        setNewCatName('');
+                        if (opt.value === 'personal') {
+                          setCategory(PERSONAL_DEFAULT_CATEGORIES[0]);
+                          setSplitType('porcentaje');
+                          const percs: Record<string, string> = {};
+                          roommates.forEach(r => { percs[r.id] = r.id === paidBy ? '100' : '0'; });
+                          setCustomPercentages(percs);
+                        } else {
+                          setCategory(HOGAR_DEFAULT_CATEGORIES[0]);
+                          setSplitType(defaultSplitType);
+                          const defaultPercs = Object.keys(defaultSplitPercentages).length > 0
+                            ? Object.fromEntries(Object.entries(defaultSplitPercentages).map(([k, v]) => [k, String(v)]))
+                            : Object.fromEntries(roommates.map(r => [r.id, String(Math.round(100 / roommates.length))]));
+                          setCustomPercentages(defaultPercs);
+                        }
+                      }}
+                      className={`h-9 px-4 rounded-xl text-[13px] font-semibold transition-all active:scale-95 ${macroCategory === opt.value ? 'bg-indigo-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'}`}>
+                      {opt.label}
+                    </button>
+                  ))}
+                  {bills.length > 0 && !associatedBillId && (
+                    <button type="button" onClick={() => setShowRecurringPicker(p => !p)}
+                      className="ml-auto flex items-center gap-1 text-[12px] font-medium text-indigo-500 hover:text-indigo-700 transition">
+                      🔁 <span>Cargar recurrente</span>
+                    </button>
+                  )}
+                  {associatedBillId && (
+                    <button type="button" onClick={() => { setAssociatedBillId(''); if (title.startsWith('[Pago Recurrente]')) setTitle(''); setShowRecurringPicker(false); }}
+                      className="ml-auto flex items-center gap-1 text-[12px] font-medium text-rose-400 hover:text-rose-600 transition">
+                      🔁 <span className="line-clamp-1 max-w-[100px]">{bills.find(b => b.id === associatedBillId)?.name}</span> <X size={11} />
+                    </button>
+                  )}
                 </div>
 
-                {/* Vincular a recurrente — solo si viene prefill de un bill existente */}
-                {bills.length > 0 && (
-                  <div id="expense-fixed-bill-picker" className="border border-dashed border-zinc-300 dark:border-zinc-700 rounded-2xl p-4 space-y-3">
-                    <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
-                      Gasto recurrente (opcional)
-                    </label>
+                {/* Picker de recurrente (colapsable) */}
+                {showRecurringPicker && bills.length > 0 && (
+                  <div id="expense-fixed-bill-picker" className="animate-fadeIn space-y-2">
                     <select
                       id="select-fixed-bill-dropdown"
                       value={associatedBillId}
@@ -794,18 +812,19 @@ export default function ExpensesTab({
                               setSplitType(b.splitType as SplitType);
                               if (b.splits) setCustomPercentages(Object.fromEntries(Object.entries(b.splits).map(([k, v]) => [k, String(v)])));
                             }
+                            setShowRecurringPicker(false);
                           }
                         }
                       }}
-                      className="w-full h-12 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full h-11 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
-                      <option value="">— Sin vincular —</option>
+                      <option value="">— Elegir gasto recurrente —</option>
                       {bills.map(b => (
                         <option key={b.id} value={b.id}>{b.name} ({b.currency === 'USD' ? '$' : 'S/'} {b.amount})</option>
                       ))}
                     </select>
                     {associatedBillId && (
-                      <div className="animate-fadeIn">
+                      <div>
                         <label className="text-[11px] text-zinc-400 font-medium">Mes del pago</label>
                         <select id="select-fixed-bill-month-dropdown" value={recurrentBillMonth}
                           onChange={(e) => setRecurrentBillMonth(e.target.value)}
@@ -817,7 +836,7 @@ export default function ExpensesTab({
                   </div>
                 )}
 
-                {/* Descripción */}
+                {/* 2. Descripción */}
                 <div>
                   <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
                     Descripción
@@ -836,7 +855,6 @@ export default function ExpensesTab({
                       placeholder="Ej. Mercado Wong, Luz junio..."
                       className="flex-1 h-12 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[15px] focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
-                    {/* Foto comprobante inline */}
                     {receiptImage ? (
                       <div className="relative flex-shrink-0">
                         <img src={receiptImage} alt="Comprobante"
@@ -857,48 +875,47 @@ export default function ExpensesTab({
                   </div>
                 </div>
 
-                {/* Monto + Moneda */}
+                {/* 3. Monto */}
                 <div>
                   <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Monto</label>
-                  <div className="mt-1 flex gap-2">
+                  <div className="mt-1 flex gap-2 items-center">
+                    {/* Moneda selector compacto dentro del campo */}
                     <div className="relative flex-1">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 font-medium text-[15px]">
-                        {currency === 'USD' ? '$' : 'S/'}
-                      </span>
+                      <div className="absolute left-0 top-0 bottom-0 flex">
+                        {(['PEN', 'USD'] as const).map(c => (
+                          <button key={c} type="button"
+                            onClick={() => { setCurrency(c); setExchangeRateInput(c === 'USD' ? 3.80 : 1); }}
+                            className={`h-full px-2 text-[12px] font-bold rounded-l-xl transition-all first:rounded-l-xl last:rounded-none ${currency === c ? 'bg-indigo-600 text-white' : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400'}`}>
+                            {c === 'PEN' ? 'S/' : '$'}
+                          </button>
+                        ))}
+                      </div>
                       <input
                         id="expense-amount-input"
                         type="number" inputMode="decimal" step="0.01" required
                         value={amountInput}
                         onChange={(e) => setAmountInput(e.target.value === '' ? '' : Number(e.target.value))}
                         placeholder="0.00"
-                        className="w-full h-12 pl-8 pr-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-semibold text-[16px] focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="w-full h-14 pl-16 pr-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-bold text-[22px] focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       />
-                    </div>
-                    {/* Moneda toggle */}
-                    <div className="flex bg-zinc-100 dark:bg-zinc-800 rounded-xl p-1 gap-1 flex-shrink-0">
-                      {(['PEN', 'USD'] as const).map(c => (
-                        <button key={c} type="button"
-                          onClick={() => { setCurrency(c); setExchangeRateInput(c === 'USD' ? 3.80 : 1); }}
-                          className={`px-3 h-10 rounded-lg text-[12px] font-bold transition active:scale-95 ${currency === c ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm' : 'text-zinc-500 dark:text-zinc-400'}`}>
-                          {c === 'PEN' ? 'S/.' : '$'}
-                        </button>
-                      ))}
                     </div>
                   </div>
                   {currency === 'USD' && (
-                    <div className="mt-2">
-                      <label className="text-[11px] text-zinc-400 font-medium">Tipo de cambio (S/ por $)</label>
+                    <div className="mt-2 flex items-center gap-2">
+                      <label className="text-[11px] text-zinc-400 font-medium shrink-0">Tipo de cambio S//$</label>
                       <input type="number" inputMode="decimal" step="0.001" value={exchangeRateInput}
                         onChange={(e) => setExchangeRateInput(e.target.value === '' ? '' : Number(e.target.value))}
                         placeholder="3.80"
-                        className="mt-1 w-full h-10 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                        className="flex-1 h-9 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                     </div>
                   )}
                 </div>
 
-                {/* Quién pagó — chips */}
+                {/* 4. Quién pagó */}
                 <div>
-                  <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">¿Quién pagó?</label>
+                  <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
+                    {macroCategory === 'personal' ? 'Gasto personal de' : '¿Quién pagó?'}
+                  </label>
                   <div className="mt-2 flex gap-2 flex-wrap">
                     {roommates.map(r => (
                       <button key={r.id} type="button" id={r.id === paidBy ? 'expense-payer-select' : undefined}
@@ -917,122 +934,148 @@ export default function ExpensesTab({
                   </div>
                 </div>
 
-                {/* División */}
-                <div>
-                  <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">División</label>
-                  <div className="mt-2 grid grid-cols-3 gap-2">
-                    {[
-                      { id: 'split-type-equitativo', value: 'equitativo' as SplitType, label: 'Equitativo' },
-                      { id: 'split-type-proporcional', value: 'proporcional' as SplitType, label: 'Por ingresos' },
-                      { id: 'split-type-porcentaje', value: 'porcentaje' as SplitType, label: '% personalizado' },
-                    ].map(opt => (
-                      <button key={opt.value} id={opt.id} type="button" onClick={() => setSplitType(opt.value)}
-                        className={`h-10 rounded-xl text-[13px] font-semibold transition active:scale-95 ${splitType === opt.value ? 'bg-indigo-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'}`}>
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
+                {/* 5. División — solo para Hogar, colapsada por defecto */}
+                {macroCategory === 'hogar' && (
+                  <div>
+                    <button type="button" onClick={() => setShowSplitConfig(p => !p)}
+                      className="w-full flex items-center justify-between group">
+                      <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide cursor-pointer">División</label>
+                      <span className="text-[12px] text-indigo-500 font-semibold group-hover:text-indigo-700 transition">
+                        {showSplitConfig ? 'Ocultar' : (() => {
+                          if (splitType === 'equitativo') return `Equitativo · ${roommates.map((r, i) => { const base = parseFloat((100/roommates.length).toFixed(1)); const d = i === roommates.length-1 ? +(100-base*(roommates.length-1)).toFixed(1) : base; return `${r.name} ${d}%`; }).join(' · ')}`;
+                          if (splitType === 'proporcional') return 'Por ingresos · Cambiar';
+                          return roommates.map(r => `${r.name} ${customPercentages[r.id] || 0}%`).join(' · ');
+                        })()}
+                      </span>
+                    </button>
 
-                  {/* Equitativo — preview de % */}
-                  {splitType === 'equitativo' && (
-                    <div className="mt-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl space-y-1 animate-fadeIn">
-                      {roommates.map((r, i) => {
-                        const base = parseFloat((100 / roommates.length).toFixed(1));
-                        const display = i === roommates.length - 1 ? +(100 - base * (roommates.length - 1)).toFixed(1) : base;
-                        return (
-                          <div key={r.id} className="flex items-center justify-between text-[13px]">
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: r.color }} />
-                              <span className="text-zinc-700 dark:text-zinc-300 font-medium">{r.name}</span>
-                            </div>
-                            <span className="text-zinc-500 dark:text-zinc-400 font-semibold">{display}%</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* Proporcional info */}
-                  {splitType === 'proporcional' && (
-                    totalIncome <= 0 ? (
-                      <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-xl text-[13px] text-amber-800 dark:text-amber-300 space-y-2 animate-fadeIn">
-                        <p className="font-semibold flex items-center gap-1.5"><AlertTriangle size={14} /> Faltan ingresos configurados</p>
-                        <button type="button" onClick={() => { cancelEdit(); onNavigateTab?.('budget'); }}
-                          className="flex items-center gap-1 text-[12px] font-bold text-amber-700 dark:text-amber-400 underline">
-                          Ir a Depa <ArrowRight size={11} />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="mt-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl space-y-1 animate-fadeIn">
-                        {roommates.map(r => {
-                          const pct = totalIncome > 0 ? (r.income / totalIncome * 100) : 0;
-                          return (
-                            <div key={r.id} className="flex items-center justify-between text-[13px]">
-                              <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: r.color }} />
-                                <span className="text-zinc-700 dark:text-zinc-300 font-medium">{r.name}</span>
-                              </div>
-                              <span className="text-zinc-500 dark:text-zinc-400 font-semibold">{pct.toFixed(1)}%</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )
-                  )}
-
-                  {/* % personalizado */}
-                  {splitType === 'porcentaje' && (
-                    <div className="mt-3 space-y-2 animate-fadeIn">
-                      <div className="flex items-center justify-between">
-                        <span className={`text-[12px] font-semibold ${Math.abs(roommates.reduce((a, r) => a + (parseFloat(customPercentages[r.id]) || 0), 0) - 100) < 0.1 ? 'text-emerald-500' : 'text-amber-500'}`}>
-                          Total: {roommates.reduce((a, r) => a + (parseFloat(customPercentages[r.id]) || 0), 0).toFixed(1)}%
-                        </span>
-                        <button type="button"
-                          onClick={() => { const s = Math.round((100 / roommates.length) * 100) / 100; const p: Record<string,string> = {}; roommates.forEach((r, i) => { p[r.id] = String(i === roommates.length - 1 ? Math.round((100 - s * (roommates.length - 1)) * 100) / 100 : s); }); setCustomPercentages(p); }}
-                          className="text-[12px] text-indigo-500 font-semibold">
-                          Resetear equitativo
-                        </button>
-                      </div>
-                      {roommates.map(r => (
-                        <div key={r.id} className="flex items-center gap-3">
-                          <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0"
-                            style={{ backgroundColor: r.color }}>{r.name.charAt(0)}</div>
-                          <span className="flex-1 text-[14px] text-zinc-800 dark:text-zinc-200 font-medium">{r.name}</span>
-                          <div className="relative w-24">
-                            <input type="number" inputMode="decimal" min={0} max={100}
-                              value={customPercentages[r.id] ?? ''}
-                              onChange={(e) => handlePercentageChange(r.id, e.target.value)}
-                              className="w-full h-10 pr-7 pl-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[14px] font-semibold text-right focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 text-[13px] pointer-events-none">%</span>
-                          </div>
+                    {showSplitConfig && (
+                      <div className="mt-2 animate-fadeIn space-y-3">
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { id: 'split-type-equitativo', value: 'equitativo' as SplitType, label: 'Equitativo' },
+                            { id: 'split-type-proporcional', value: 'proporcional' as SplitType, label: 'Por ingresos' },
+                            { id: 'split-type-porcentaje', value: 'porcentaje' as SplitType, label: '% personalizado' },
+                          ].map(opt => (
+                            <button key={opt.value} id={opt.id} type="button" onClick={() => setSplitType(opt.value)}
+                              className={`h-10 rounded-xl text-[13px] font-semibold transition active:scale-95 ${splitType === opt.value ? 'bg-indigo-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'}`}>
+                              {opt.label}
+                            </button>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
 
-                {/* Categoría — chips dinámicos según macro */}
+                        {splitType === 'equitativo' && (
+                          <div className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl space-y-1">
+                            {roommates.map((r, i) => {
+                              const base = parseFloat((100 / roommates.length).toFixed(1));
+                              const display = i === roommates.length - 1 ? +(100 - base * (roommates.length - 1)).toFixed(1) : base;
+                              return (
+                                <div key={r.id} className="flex items-center justify-between text-[13px]">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: r.color }} />
+                                    <span className="text-zinc-700 dark:text-zinc-300 font-medium">{r.name}</span>
+                                  </div>
+                                  <span className="text-zinc-500 dark:text-zinc-400 font-semibold">{display}%</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {splitType === 'proporcional' && (
+                          totalIncome <= 0 ? (
+                            <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-xl text-[13px] text-amber-800 dark:text-amber-300 space-y-2">
+                              <p className="font-semibold flex items-center gap-1.5"><AlertTriangle size={14} /> Faltan ingresos configurados</p>
+                              <button type="button" onClick={() => { cancelEdit(); onNavigateTab?.('budget'); }}
+                                className="flex items-center gap-1 text-[12px] font-bold text-amber-700 dark:text-amber-400 underline">
+                                Ir a Depa <ArrowRight size={11} />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl space-y-1">
+                              {roommates.map(r => {
+                                const pct = totalIncome > 0 ? (r.income / totalIncome * 100) : 0;
+                                return (
+                                  <div key={r.id} className="flex items-center justify-between text-[13px]">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: r.color }} />
+                                      <span className="text-zinc-700 dark:text-zinc-300 font-medium">{r.name}</span>
+                                    </div>
+                                    <span className="text-zinc-500 dark:text-zinc-400 font-semibold">{pct.toFixed(1)}%</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )
+                        )}
+
+                        {splitType === 'porcentaje' && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className={`text-[12px] font-semibold ${Math.abs(roommates.reduce((a, r) => a + (parseFloat(customPercentages[r.id]) || 0), 0) - 100) < 0.1 ? 'text-emerald-500' : 'text-amber-500'}`}>
+                                Total: {roommates.reduce((a, r) => a + (parseFloat(customPercentages[r.id]) || 0), 0).toFixed(1)}%
+                              </span>
+                              <button type="button"
+                                onClick={() => { const s = Math.round((100 / roommates.length) * 100) / 100; const p: Record<string,string> = {}; roommates.forEach((r, i) => { p[r.id] = String(i === roommates.length - 1 ? Math.round((100 - s * (roommates.length - 1)) * 100) / 100 : s); }); setCustomPercentages(p); }}
+                                className="text-[12px] text-indigo-500 font-semibold">
+                                Restablecer equitativo
+                              </button>
+                            </div>
+                            {roommates.map(r => (
+                              <div key={r.id} className="flex items-center gap-3">
+                                <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0"
+                                  style={{ backgroundColor: r.color }}>{r.name.charAt(0)}</div>
+                                <span className="flex-1 text-[14px] text-zinc-800 dark:text-zinc-200 font-medium">{r.name}</span>
+                                <div className="relative w-24">
+                                  <input type="number" inputMode="decimal" min={0} max={100}
+                                    value={customPercentages[r.id] ?? ''}
+                                    onChange={(e) => handlePercentageChange(r.id, e.target.value)}
+                                    className="w-full h-10 pr-7 pl-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[14px] font-semibold text-right focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 text-[13px] pointer-events-none">%</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 6. Subcategoría */}
                 <div>
-                  <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Subcategoría</label>
+                  <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Categoría</label>
                   <div className="mt-2 flex gap-2 flex-wrap">
-                    {(macroCategory === 'hogar'
-                      ? [...HOGAR_DEFAULT_CATEGORIES, ...customHogarCategories]
-                      : [...PERSONAL_DEFAULT_CATEGORIES, ...customPersonalCategories]
-                    ).map(cat => {
-                      const s = CATEGORY_LABELS[cat];
-                      const active = category === cat;
+                    {(() => {
+                      const allCats = macroCategory === 'hogar'
+                        ? [...HOGAR_DEFAULT_CATEGORIES, ...customHogarCategories]
+                        : [...PERSONAL_DEFAULT_CATEGORIES, ...customPersonalCategories];
+                      const visible = showAllCategories ? allCats : allCats.slice(0, 4);
                       return (
-                        <button key={cat} type="button" onClick={() => setCategory(cat)}
-                          className={`h-8 px-3 rounded-xl text-[12px] font-medium transition active:scale-95 ${active ? `${s ? s.bg : 'bg-indigo-50 dark:bg-indigo-950/40'} ${s ? s.text : 'text-indigo-600 dark:text-indigo-400'} ring-2 ring-indigo-500 ring-offset-1` : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'}`}>
-                          {getCategoryLabel(cat)}
-                        </button>
+                        <>
+                          {visible.map(cat => {
+                            const s = CATEGORY_LABELS[cat];
+                            const active = category === cat;
+                            return (
+                              <button key={cat} type="button" onClick={() => setCategory(cat)}
+                                className={`h-8 px-3 rounded-xl text-[12px] font-medium transition active:scale-95 ${active ? `${s ? s.bg : 'bg-indigo-50 dark:bg-indigo-950/40'} ${s ? s.text : 'text-indigo-600 dark:text-indigo-400'} ring-2 ring-indigo-500 ring-offset-1` : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'}`}>
+                                {getCategoryLabel(cat)}
+                              </button>
+                            );
+                          })}
+                          {allCats.length > 4 && !showAllCategories && (
+                            <button type="button" onClick={() => setShowAllCategories(true)}
+                              className="h-8 px-3 rounded-xl text-[12px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:text-indigo-500 transition active:scale-95">
+                              +{allCats.length - 4} más
+                            </button>
+                          )}
+                        </>
                       );
-                    })}
-                    {/* Agregar categoría custom */}
+                    })()}
                     {!showNewCatInput ? (
-                      <button type="button" onClick={() => setShowNewCatInput(true)}
-                        className="h-8 px-3 rounded-xl text-[12px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition active:scale-95 border border-dashed border-zinc-300 dark:border-zinc-600">
-                        + Nueva
+                      <button type="button" onClick={() => { setShowAllCategories(true); setShowNewCatInput(true); }}
+                        className="h-8 px-3 rounded-xl text-[12px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition active:scale-95">
+                        + Crear
                       </button>
                     ) : (
                       <div className="flex items-center gap-1.5 mt-1 w-full">
@@ -1066,20 +1109,31 @@ export default function ExpensesTab({
                   </div>
                 </div>
 
-                {/* Fecha */}
+                {/* 7. Fecha compacta */}
                 <div>
-                  <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Fecha</label>
-                  <input type="date" required value={date} onChange={(e) => setDate(e.target.value)}
-                    className="mt-1 w-full h-12 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  {!showDatePicker ? (
+                    <button type="button" onClick={() => setShowDatePicker(true)}
+                      className="flex items-center gap-2 text-[13px] text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition">
+                      <Calendar size={14} />
+                      <span>{date === new Date().toISOString().split('T')[0] ? 'Hoy' : date}</span>
+                      <span className="text-indigo-500 font-semibold text-[12px]">Cambiar</span>
+                    </button>
+                  ) : (
+                    <div className="space-y-1 animate-fadeIn">
+                      <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Fecha</label>
+                      <input type="date" required value={date} onChange={(e) => setDate(e.target.value)}
+                        className="w-full h-11 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    </div>
+                  )}
                 </div>
 
-                {/* Gasto recurrente toggle */}
+                {/* 8. Recurrente toggle */}
                 {!editingExpenseId && !associatedBillId && (
                   <button type="button" onClick={() => setIsRecurring(r => !r)}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border-2 transition-all ${isRecurring ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/30' : 'border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800'}`}>
                     <div className="text-left">
-                      <p className={`text-[13px] font-bold ${isRecurring ? 'text-indigo-700 dark:text-indigo-300' : 'text-zinc-700 dark:text-zinc-200'}`}>¿Es un gasto recurrente?</p>
-                      <p className="text-[11px] text-zinc-400 mt-0.5">{isRecurring ? 'Se añadirá a tus gastos fijos mensuales' : 'Activa si se repite cada mes'}</p>
+                      <p className={`text-[13px] font-bold ${isRecurring ? 'text-indigo-700 dark:text-indigo-300' : 'text-zinc-700 dark:text-zinc-200'}`}>Guardar como gasto recurrente</p>
+                      <p className="text-[11px] text-zinc-400 mt-0.5">{isRecurring ? 'Al guardar podrás cargarlo más rápido la siguiente vez' : 'Actívalo si este gasto se repite cada mes'}</p>
                     </div>
                     <div className={`w-11 h-6 rounded-full transition-colors flex items-center px-0.5 ${isRecurring ? 'bg-indigo-600' : 'bg-zinc-300 dark:bg-zinc-600'}`}>
                       <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform ${isRecurring ? 'translate-x-5' : 'translate-x-0'}`} />
