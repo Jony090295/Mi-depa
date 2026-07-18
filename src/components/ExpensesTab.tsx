@@ -753,6 +753,10 @@ export default function ExpensesTab({
                           } else {
                             setCategory(HOGAR_DEFAULT_CATEGORIES[0]);
                             setSplitType(defaultSplitType);
+                            const defaultPercs = Object.keys(defaultSplitPercentages).length > 0
+                              ? Object.fromEntries(Object.entries(defaultSplitPercentages).map(([k, v]) => [k, String(v)]))
+                              : Object.fromEntries(roommates.map(r => [r.id, String(Math.round(100 / roommates.length))]));
+                            setCustomPercentages(defaultPercs);
                           }
                         }}
                         className={`flex-1 flex flex-col items-center py-2.5 px-3 rounded-2xl border-2 transition-all text-center ${macroCategory === opt.value ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/30' : 'border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800'}`}>
