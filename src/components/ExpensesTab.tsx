@@ -903,8 +903,8 @@ export default function ExpensesTab({
       <div className="space-y-8">
         {/* Modal / Dialog for registering or editing expense */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex flex-col justify-end" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={cancelEdit}>
-            <div className="w-full max-w-xl mx-auto flex flex-col rounded-t-3xl overflow-hidden" style={{ background: '#F7F7FC', maxHeight: '93dvh' }} onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-x-0 top-0 z-[100] flex flex-col justify-end" style={{ bottom: 'calc(60px + env(safe-area-inset-bottom))', background: 'rgba(0,0,0,0.45)' }} onClick={cancelEdit}>
+            <div className="w-full max-w-xl mx-auto flex flex-col rounded-t-3xl overflow-hidden" style={{ background: '#F7F7FC', maxHeight: '90dvh' }} onClick={e => e.stopPropagation()}>
 
               {/* ── Header ── */}
               <div
