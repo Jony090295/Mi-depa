@@ -218,7 +218,7 @@ export default function ExpensesTab({
       const selectedBill = bills.find(b => b.id === prefilledBillId);
       if (selectedBill) {
         setAssociatedBillId(selectedBill.id);
-        setTitle(`[Pago Recurrente] ${selectedBill.name}`);
+        setTitle(`${selectedBill.name}`);
         setCategory(selectedBill.category || 'servicio');
         setAmountInput(selectedBill.amount);
         if (selectedBill.currency) setCurrency(selectedBill.currency);
@@ -1004,7 +1004,7 @@ export default function ExpensesTab({
                       <div className="flex items-center gap-2 px-4 py-2 rounded-2xl" style={{ background: '#EEF2FF', border: '1px solid #C7D2FE' }}>
                         <RefreshCw size={14} className="text-indigo-500 shrink-0" aria-hidden="true" />
                         <span className="flex-1 text-[13px] font-medium text-indigo-700 truncate">{bills.find(b => b.id === associatedBillId)?.name}</span>
-                        <button type="button" aria-label="Quitar recurrente" onClick={() => { setAssociatedBillId(''); if (title.startsWith('[Pago Recurrente]')) setTitle(''); setShowRecurringPicker(false); }} className="text-rose-400 hover:text-rose-600 transition p-1"><X size={13} /></button>
+                        <button type="button" aria-label="Quitar recurrente" onClick={() => { setAssociatedBillId(''); setTitle(''); setShowRecurringPicker(false); }} className="text-rose-400 hover:text-rose-600 transition p-1"><X size={13} /></button>
                       </div>
                     )}
                     {showRecurringPicker && !associatedBillId && (
@@ -1018,7 +1018,7 @@ export default function ExpensesTab({
                             if (selectedId !== '') {
                               const b = bills.find(b => b.id === selectedId);
                               if (b) {
-                                setTitle(`[Pago Recurrente] ${b.name}`);
+                                setTitle(`${b.name}`);
                                 setCategory(b.category || 'servicio');
                                 setAmountInput(b.amount);
                                 if (b.currency) setCurrency(b.currency);
