@@ -68,6 +68,7 @@ export default function ExpensesTab({
   const [openMenuExpenseId, setOpenMenuExpenseId] = useState<string | null>(null);
   const [showRecurringReport, setShowRecurringReport] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
+  const [macroCategory, setMacroCategory] = useState<'hogar' | 'personal'>('hogar');
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const getMonthYearStringFromDate = (dateStr: string) => {
@@ -153,6 +154,7 @@ export default function ExpensesTab({
     }
     setAssociatedBillId(expense.recurrentBillId || '');
     setRecurrentBillMonth(expense.recurrentBillMonth || getMonthYearStringFromDate(expense.date || new Date().toISOString().split('T')[0]));
+    setMacroCategory(expense.macroCategory ?? 'hogar');
     setIsModalOpen(true);
   };
 
@@ -302,6 +304,7 @@ export default function ExpensesTab({
         title: title.trim(),
         amount,
         category,
+        macroCategory,
         paidBy,
         date: date || new Date().toISOString().split('T')[0],
         splitType,
@@ -322,6 +325,7 @@ export default function ExpensesTab({
         title: title.trim(),
         amount,
         category,
+        macroCategory,
         paidBy,
         date: date || new Date().toISOString().split('T')[0],
         splitType,
@@ -384,6 +388,7 @@ export default function ExpensesTab({
     setAssociatedBillId('');
     setRecurrentBillMonth(currentMonthName);
     setIsRecurring(false);
+    setMacroCategory('hogar');
     const defaultPercs2 = Object.keys(defaultSplitPercentages).length > 0
       ? Object.fromEntries(Object.entries(defaultSplitPercentages).map(([k, v]) => [k, String(v)]))
       : (() => { const p: Record<string,string> = {}; const eq = Math.round((100/roommates.length)*100)/100; roommates.forEach(r => { p[r.id] = String(eq); }); return p; })();
@@ -714,6 +719,34 @@ export default function ExpensesTab({
                 className="overflow-y-auto flex-1 min-h-0 px-6 py-4 space-y-5"
                 style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
               >
+                {/* Macro categoría */}
+                <div>
+                  <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Tipo de gasto</label>
+                  <div className="mt-2 flex gap-2">
+                    {([
+                      { value: 'hogar', label: '🏠 Hogar', desc: 'Gasto del hogar o compartido' },
+                      { value: 'personal', label: '👤 Personal', desc: 'Gasto solo tuyo' },
+                    ] as const).map(opt => (
+                      <button key={opt.value} type="button"
+                        onClick={() => {
+                          setMacroCategory(opt.value);
+                          if (opt.value === 'personal') {
+                            setSplitType('porcentaje');
+                            const percs: Record<string, string> = {};
+                            roommates.forEach(r => { percs[r.id] = r.id === paidBy ? '100' : '0'; });
+                            setCustomPercentages(percs);
+                          } else {
+                            setSplitType(defaultSplitType);
+                          }
+                        }}
+                        className={`flex-1 flex flex-col items-center py-2.5 px-3 rounded-2xl border-2 transition-all text-center ${macroCategory === opt.value ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/30' : 'border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800'}`}>
+                        <span className="text-[13px] font-bold text-zinc-800 dark:text-zinc-100">{opt.label}</span>
+                        <span className="text-[10px] text-zinc-400 mt-0.5">{opt.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Vincular a recurrente — solo si viene prefill de un bill existente */}
                 {bills.length > 0 && (
                   <div id="expense-fixed-bill-picker" className="border border-dashed border-zinc-300 dark:border-zinc-700 rounded-2xl p-4 space-y-3">
@@ -849,7 +882,14 @@ export default function ExpensesTab({
                   <div className="mt-2 flex gap-2 flex-wrap">
                     {roommates.map(r => (
                       <button key={r.id} type="button" id={r.id === paidBy ? 'expense-payer-select' : undefined}
-                        onClick={() => setPaidBy(r.id)}
+                        onClick={() => {
+                          setPaidBy(r.id);
+                          if (macroCategory === 'personal') {
+                            const percs: Record<string, string> = {};
+                            roommates.forEach(rm => { percs[rm.id] = rm.id === r.id ? '100' : '0'; });
+                            setCustomPercentages(percs);
+                          }
+                        }}
                         className={`h-9 px-4 rounded-xl text-[14px] font-medium transition active:scale-95 ${paidBy === r.id ? 'bg-indigo-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300'}`}>
                         {r.name}
                       </button>

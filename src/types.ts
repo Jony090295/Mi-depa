@@ -16,11 +16,14 @@ export type ExpenseCategory = 'alquiler' | 'membresia' | 'auto' | 'servicio' | '
 
 export type SplitType = 'porcentaje' | 'proporcional' | 'equitativo'; // % custom, proporcional a ingresos, 50-50
 
+export type MacroCategory = 'hogar' | 'personal';
+
 export interface Expense {
   id: string;
   title: string;
   amount: number;
   category: ExpenseCategory;
+  macroCategory?: MacroCategory;
   paidBy: string; // Roommate ID who fronted the money
   date: string;
   splitType: SplitType;

@@ -21,6 +21,7 @@ function rowToRoommate(r: any): Roommate {
 function rowToExpense(r: any): Expense {
   return {
     id: r.id, title: r.title, amount: r.amount, category: r.category,
+    macroCategory: r.macro_category ?? 'hogar',
     paidBy: r.paid_by, date: r.date, splitType: r.split_type,
     splits: r.splits ?? {}, calculatedShares: r.calculated_shares ?? {},
     currency: r.currency, exchangeRate: r.exchange_rate,
@@ -234,6 +235,7 @@ export function useApartmentData(user: User) {
     await supabase.from('expenses').insert({
       id: exp.id, apartment_id: apartmentId,
       title: exp.title, amount: exp.amount, category: exp.category,
+      macro_category: exp.macroCategory ?? 'hogar',
       paid_by: exp.paidBy, date: exp.date, split_type: exp.splitType,
       splits: exp.splits, calculated_shares: exp.calculatedShares,
       currency: exp.currency ?? 'PEN', exchange_rate: exp.exchangeRate ?? 1,
@@ -248,6 +250,7 @@ export function useApartmentData(user: User) {
     if (!apartmentId) return;
     await supabase.from('expenses').update({
       title: exp.title, amount: exp.amount, category: exp.category,
+      macro_category: exp.macroCategory ?? 'hogar',
       paid_by: exp.paidBy, date: exp.date, split_type: exp.splitType,
       splits: exp.splits, calculated_shares: exp.calculatedShares,
       currency: exp.currency ?? 'PEN', exchange_rate: exp.exchangeRate ?? 1,
