@@ -276,9 +276,9 @@ export default function Reportes({ bills, roommates, expenses, rentExchangeRate 
       </div>
 
       {/* ── Filter chips ── */}
-      <div className="px-4 py-3 flex items-center gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-        {/* Periodo */}
-        <div className="relative shrink-0">
+      <div className="px-4 pt-3 pb-1">
+        {/* Fila 1: Periodo (separada para que el dropdown no quede cortado) */}
+        <div className="relative inline-block mb-2">
           <button
             type="button"
             onClick={() => setShowPeriodoMenu(p => !p)}
@@ -291,8 +291,8 @@ export default function Reportes({ bills, roommates, expenses, rentExchangeRate 
           </button>
           {showPeriodoMenu && (
             <div
-              className="absolute top-full left-0 mt-1 bg-white rounded-2xl shadow-xl z-[200] overflow-hidden"
-              style={{ border: '1px solid #E5E7EB', minWidth: 180 }}
+              className="absolute top-full left-0 mt-1 bg-white rounded-2xl shadow-xl overflow-hidden"
+              style={{ border: '1px solid #E5E7EB', minWidth: 200, zIndex: 9999 }}
             >
               {(['1m', '3m', '6m', 'todo'] as const).map(p => (
                 <button
@@ -309,20 +309,23 @@ export default function Reportes({ bills, roommates, expenses, rentExchangeRate 
           )}
         </div>
 
-        {FILTER_CHIPS.map(chip => (
-          <button
-            key={chip.id}
-            type="button"
-            onClick={() => setFilterType(filterType === chip.id ? null : chip.id)}
-            className="shrink-0 h-8 px-3 rounded-full text-[12px] font-medium transition"
-            style={filterType === chip.id
-              ? { background: '#4F46E5', color: 'white', border: '1px solid #4F46E5' }
-              : { background: 'white', color: '#374151', border: '1px solid #E5E7EB' }
-            }
-          >
-            {chip.label}
-          </button>
-        ))}
+        {/* Fila 2: Hogar / Personal */}
+        <div className="flex gap-2">
+          {FILTER_CHIPS.map(chip => (
+            <button
+              key={chip.id}
+              type="button"
+              onClick={() => setFilterType(filterType === chip.id ? null : chip.id)}
+              className="h-8 px-4 rounded-full text-[12px] font-medium transition"
+              style={filterType === chip.id
+                ? { background: '#4F46E5', color: 'white', border: '1px solid #4F46E5' }
+                : { background: 'white', color: '#374151', border: '1px solid #E5E7EB' }
+              }
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── TAB: RESUMEN ── */}
