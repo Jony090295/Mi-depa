@@ -904,12 +904,11 @@ export default function ExpensesTab({
         {/* Modal / Dialog for registering or editing expense */}
         {isModalOpen && (
           <div className="fixed inset-x-0 top-0 z-[100] flex flex-col justify-end" style={{ bottom: 'calc(60px + env(safe-area-inset-bottom))', background: 'rgba(0,0,0,0.45)' }} onClick={cancelEdit}>
-            <div className="w-full max-w-xl mx-auto flex flex-col rounded-t-3xl overflow-hidden" style={{ background: '#F7F7FC', maxHeight: '90dvh' }} onClick={e => e.stopPropagation()}>
+            <div className="w-full max-w-xl mx-auto flex flex-col rounded-t-3xl overflow-hidden" style={{ background: '#F7F7FC', maxHeight: 'calc(100dvh - 80px)' }} onClick={e => e.stopPropagation()}>
 
               {/* ── Header ── */}
               <div
                 className="shrink-0 bg-white/90 backdrop-blur-sm border-b border-black/[0.05]"
-                style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}
               >
                 <div className="flex items-center justify-between px-5 pb-3 pt-1">
                   <button
