@@ -13,6 +13,7 @@ interface ExpensesTabProps {
   onUpdateExpense: (expense: Expense) => void;
   onNavigateTab?: (tab: string) => void;
   bills?: RecurrentBill[];
+  onAddBill?: (bill: RecurrentBill) => void;
   prefilledBillId?: string;
   onClearPrefilledBillId?: () => void;
   settlementHistory?: SettlementRecord[];
@@ -30,6 +31,7 @@ export default function ExpensesTab({
   onUpdateExpense,
   onNavigateTab,
   bills = [],
+  onAddBill,
   prefilledBillId,
   onClearPrefilledBillId,
   settlementHistory = [],
@@ -65,6 +67,7 @@ export default function ExpensesTab({
   const [splitNotification, setSplitNotification] = useState<{ names: { name: string; amount: number; currency: string }[] } | null>(null);
   const [openMenuExpenseId, setOpenMenuExpenseId] = useState<string | null>(null);
   const [showRecurringReport, setShowRecurringReport] = useState(false);
+  const [isRecurring, setIsRecurring] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const getMonthYearStringFromDate = (dateStr: string) => {
@@ -330,6 +333,28 @@ export default function ExpensesTab({
         recurrentBillMonth: associatedBillId ? recurrentBillMonth : undefined,
         receiptImage,
       };
+      // If marked as recurring, create a bill entry too
+      if (isRecurring && onAddBill) {
+        const newBill: RecurrentBill = {
+          id: crypto.randomUUID(),
+          name: title.trim(),
+          amount,
+          currency: currency as 'PEN' | 'USD',
+          exchangeRate: rate,
+          dueDate: new Date().getDate().toString(),
+          status: 'pagado',
+          alertSent: false,
+          splitType,
+          splits: splitsRecord,
+          paidBy,
+          category,
+          createdAt: new Date().toISOString().slice(0, 7),
+        };
+        onAddBill(newBill);
+        newExpense.recurrentBillId = newBill.id;
+        newExpense.recurrentBillMonth = recurrentBillMonth;
+      }
+
       onAddExpense(newExpense);
       setSuccessMsg('¡Gasto registrado con éxito!');
 
@@ -358,6 +383,7 @@ export default function ExpensesTab({
     setReceiptImage(undefined);
     setAssociatedBillId('');
     setRecurrentBillMonth(currentMonthName);
+    setIsRecurring(false);
     const defaultPercs2 = Object.keys(defaultSplitPercentages).length > 0
       ? Object.fromEntries(Object.entries(defaultSplitPercentages).map(([k, v]) => [k, String(v)]))
       : (() => { const p: Record<string,string> = {}; const eq = Math.round((100/roommates.length)*100)/100; roommates.forEach(r => { p[r.id] = String(eq); }); return p; })();
@@ -688,7 +714,7 @@ export default function ExpensesTab({
                 className="overflow-y-auto flex-1 min-h-0 px-6 py-4 space-y-5"
                 style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
               >
-                {/* Vincular a recurrente — al inicio para que el prefill tenga sentido */}
+                {/* Vincular a recurrente — solo si viene prefill de un bill existente */}
                 {bills.length > 0 && (
                   <div id="expense-fixed-bill-picker" className="border border-dashed border-zinc-300 dark:border-zinc-700 rounded-2xl p-4 space-y-3">
                     <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
@@ -948,6 +974,20 @@ export default function ExpensesTab({
                   <input type="date" required value={date} onChange={(e) => setDate(e.target.value)}
                     className="mt-1 w-full h-12 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
+
+                {/* Gasto recurrente toggle */}
+                {!editingExpenseId && !associatedBillId && (
+                  <button type="button" onClick={() => setIsRecurring(r => !r)}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border-2 transition-all ${isRecurring ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/30' : 'border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800'}`}>
+                    <div className="text-left">
+                      <p className={`text-[13px] font-bold ${isRecurring ? 'text-indigo-700 dark:text-indigo-300' : 'text-zinc-700 dark:text-zinc-200'}`}>¿Es un gasto recurrente?</p>
+                      <p className="text-[11px] text-zinc-400 mt-0.5">{isRecurring ? 'Se añadirá a tus gastos fijos mensuales' : 'Activa si se repite cada mes'}</p>
+                    </div>
+                    <div className={`w-11 h-6 rounded-full transition-colors flex items-center px-0.5 ${isRecurring ? 'bg-indigo-600' : 'bg-zinc-300 dark:bg-zinc-600'}`}>
+                      <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform ${isRecurring ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                  </button>
+                )}
 
               </form>
 

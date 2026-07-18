@@ -131,7 +131,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
   }, [variableReminders]);
 
   useEffect(() => {
-    if (environment === 'depa' && !['projected_budget', 'budget', 'expenses', 'bills', 'shopping'].includes(activeTab)) {
+    if (environment === 'depa' && !['projected_budget', 'budget', 'expenses', 'shopping'].includes(activeTab)) {
       setActiveTab('budget');
     } else if (environment === 'comunidad' && !['directory', 'forum'].includes(activeTab)) {
       setActiveTab('forum');
@@ -653,11 +653,11 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
   const currentMeta = tabMeta[activeTab] ?? { label: apartmentName, sub: '' };
 
   const navTabs = [
-    { id: 'budget',   icon: <Home size={20} />,        label: 'Inicio',    env: 'depa' as const },
-    { id: 'bills',    icon: <Clock size={20} />,        label: 'Recurrentes', env: 'depa' as const },
-    { id: 'expenses', icon: <Plus size={24} />,         label: 'Gastos', env: 'depa' as const, primary: true },
-    { id: 'shopping', icon: <ShoppingCart size={20} />, label: 'Compras',   env: 'depa' as const },
-    { id: 'forum',    icon: <Users size={20} />,        label: 'Comunidad', env: 'comunidad' as const },
+    { id: 'budget',           icon: <Home size={20} />,        label: 'Inicio',      env: 'depa' as const },
+    { id: 'projected_budget', icon: <TrendingUp size={20} />,  label: 'Presupuesto', env: 'depa' as const },
+    { id: 'expenses',         icon: <Plus size={24} />,         label: 'Gastos',      env: 'depa' as const, primary: true },
+    { id: 'shopping',         icon: <ShoppingCart size={20} />, label: 'Compras',     env: 'depa' as const },
+    { id: 'forum',            icon: <Users size={20} />,        label: 'Comunidad',   env: 'comunidad' as const },
   ];
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -693,16 +693,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
             </div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            {activeTab === 'projected_budget' && (
               <button
-                onClick={() => setActiveTab('budget')}
-                className="h-9 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 text-[12px] font-semibold flex items-center gap-1.5 active:scale-95 transition-transform"
-              >
-                <ChevronRight size={14} className="rotate-180" />
-                <span>Inicio</span>
-              </button>
-            )}
-            <button
               onClick={() => setDarkMode(!darkMode)}
               className="w-10 h-10 flex items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 active:bg-zinc-100 dark:active:bg-zinc-800 transition-colors"
               aria-label={darkMode ? 'Modo claro' : 'Modo oscuro'}
@@ -781,22 +772,6 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                     <ArrowRight size={14} className="text-zinc-300 dark:text-zinc-600 shrink-0" />
                   </button>
                 )}
-              </div>
-
-              {/* Análisis */}
-              <div className="space-y-1.5">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 px-1">Análisis</p>
-                <button onClick={() => setActiveTab('projected_budget')}
-                  className="w-full flex items-center gap-3 px-4 py-3 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 active:scale-[0.98] transition text-left shadow-sm">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center shrink-0">
-                    <TrendingUp size={15} className="text-indigo-500" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-semibold text-zinc-900 dark:text-zinc-100">Presupuesto mensual</p>
-                    <p className="text-[11px] text-zinc-400">Proyección de gastos del mes</p>
-                  </div>
-                  <ArrowRight size={14} className="text-zinc-300 dark:text-zinc-600 shrink-0" />
-                </button>
               </div>
 
               {/* Roommates */}
@@ -1037,38 +1012,13 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
             onUpdateExpense={handleUpdateExpense}
             onNavigateTab={setActiveTab}
             bills={bills}
+            onAddBill={handleAddBill}
             prefilledBillId={prefilledBillId}
             onClearPrefilledBillId={() => setPrefilledBillId('')}
             settlementHistory={settlementHistory}
             onAddSettlement={handleAddSettlement}
             defaultSplitType={aptConfig?.defaultSplitType ?? 'equitativo'}
             defaultSplitPercentages={aptConfig?.defaultSplitPercentages ?? {}}
-          />
-        )}
-
-        {activeTab === 'bills' && (
-          <RecurrentBillsTab
-            roommates={roommates}
-            allRoommates={[...roommates, ...deletedRoommates]}
-            bills={bills}
-            billHistory={billHistory}
-            onUpdateBillStatus={handleUpdateBillStatus}
-            onAddBill={handleAddBill}
-            onRemoveBill={handleRemoveBill}
-            onSendBillAlert={handleSendBillAlert}
-            onUpdateBill={handleUpdateBill}
-            onRemoveHistoryEntry={handleRemoveHistoryEntry}
-            onUpdateHistoryEntry={handleUpdateHistoryEntry}
-            onDiscardBillForMonth={handleDiscardBillForMonth}
-            onNavigateTab={setActiveTab}
-            onPrefillBillInExpenses={(billId) => {
-              setPrefilledBillId(billId);
-              setActiveTab('expenses');
-            }}
-            variableReminders={variableReminders}
-            onAddVariableReminder={handleAddVariableReminder}
-            onRemoveVariableReminder={handleRemoveVariableReminder}
-            onMarkVariableReminderDone={handleMarkVariableReminderDone}
           />
         )}
 
