@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Roommate, Expense, ExpenseCategory, SplitType, RecurrentBill, SettlementRecord, HOGAR_DEFAULT_CATEGORIES, PERSONAL_DEFAULT_CATEGORIES } from '../types';
 import { CATEGORY_LABELS, getCategoryLabel, inferCategoryFromName } from '../utils';
 import { calculateSettlements } from '../utils';
-import { Plus, Trash2, Split, Calendar, ArrowRight, Info, Check, Pencil, X, AlertTriangle, Camera, FileText } from 'lucide-react';
+import { Plus, Trash2, Split, Calendar, ArrowRight, Info, Check, Pencil, X, AlertTriangle, Camera, FileText, ArrowLeft, ChevronDown, ChevronRight, Home, User, Zap, ShoppingCart, Droplet, CreditCard, Car, MoreHorizontal, Heart, Tag, Activity, RefreshCw } from 'lucide-react';
 
 interface ExpensesTabProps {
   roommates: Roommate[];
@@ -83,7 +83,9 @@ export default function ExpensesTab({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [showRecurringPicker, setShowRecurringPicker] = useState(false);
+  const [showPayerDropdown, setShowPayerDropdown] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const getMonthYearStringFromDate = (dateStr: string) => {
     if (!dateStr) return '';
@@ -413,6 +415,7 @@ export default function ExpensesTab({
     setShowDatePicker(false);
     setShowAllCategories(false);
     setShowRecurringPicker(false);
+    setShowPayerDropdown(false);
     const defaultPercs2 = Object.keys(defaultSplitPercentages).length > 0
       ? Object.fromEntries(Object.entries(defaultSplitPercentages).map(([k, v]) => [k, String(v)]))
       : (() => { const p: Record<string,string> = {}; const eq = Math.round((100/roommates.length)*100)/100; roommates.forEach(r => { p[r.id] = String(eq); }); return p; })();
@@ -534,6 +537,34 @@ export default function ExpensesTab({
       w.document.write(html);
       w.document.close();
     }
+  };
+
+  const CATEGORY_ICON_MAP: Record<string, React.ElementType> = {
+    alquiler: Home, servicio: Zap, comida: ShoppingCart, limpieza: Droplet,
+    membresia: CreditCard, auto: Car, otros: MoreHorizontal,
+    salud: Heart, ropa: Tag, deporte: Activity,
+  };
+
+  const renderSplitSummary = () => {
+    if (splitType === 'proporcional') return <span>Por ingresos</span>;
+    const pairs = roommates.map((r, i) => {
+      if (splitType === 'equitativo') {
+        const base = parseFloat((100 / roommates.length).toFixed(1));
+        return { r, pct: i === roommates.length - 1 ? +(100 - base * (roommates.length - 1)).toFixed(1) : base };
+      }
+      return { r, pct: parseFloat(customPercentages[r.id] || '0') };
+    }).filter(({ pct }) => Number(pct) > 0);
+    return (
+      <>
+        {pairs.map(({ r, pct }, i) => (
+          <React.Fragment key={r.id}>
+            {i > 0 && <span className="text-gray-400 dark:text-zinc-500"> / </span>}
+            <span style={{ color: r.color }} className="font-semibold">{Number(pct) % 1 === 0 ? Number(pct) : Number(pct).toFixed(1)}%</span>
+            {' '}{r.name}
+          </React.Fragment>
+        ))}
+      </>
+    );
   };
 
   return (
@@ -717,118 +748,152 @@ export default function ExpensesTab({
       <div className="space-y-8">
         {/* Modal / Dialog for registering or editing expense */}
         {isModalOpen && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end justify-center" style={{ paddingTop: 'max(env(safe-area-inset-top), 52px)', paddingBottom: 'calc(56px + env(safe-area-inset-bottom))' }}>
-            <div className="bg-white dark:bg-zinc-900 w-full max-w-xl rounded-t-3xl shadow-2xl flex flex-col" style={{ maxHeight: '100%' }}>
+          <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#F7F7FC' }}>
+            <div className="w-full max-w-xl mx-auto flex flex-col h-full">
 
-              {/* Header — fijo */}
-              <div className="flex items-center justify-between px-6 pt-5 pb-4 flex-shrink-0 border-b border-zinc-100 dark:border-zinc-800">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center text-indigo-600">
-                    {editingExpenseId ? <Pencil size={16} /> : <Plus size={16} />}
-                  </div>
-                  <h2 className="text-[17px] font-bold text-zinc-900 dark:text-zinc-100">
+              {/* ── Header ── */}
+              <div
+                className="shrink-0 bg-white/90 backdrop-blur-sm border-b border-black/[0.05]"
+                style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}
+              >
+                <div className="flex items-center justify-between px-5 pb-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={cancelEdit}
+                    aria-label="Volver"
+                    className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-indigo-50 transition active:scale-90"
+                  >
+                    <ArrowLeft size={20} className="text-indigo-600" />
+                  </button>
+                  <h2 className="text-[16px] font-semibold" style={{ color: '#242536' }}>
                     {editingExpenseId ? 'Editar gasto' : 'Nuevo gasto'}
                   </h2>
+                  <button
+                    type="button"
+                    onClick={() => formRef.current?.requestSubmit()}
+                    className="h-11 px-3 text-[14px] font-semibold text-indigo-600 rounded-xl hover:bg-indigo-50 transition active:scale-95"
+                  >
+                    Guardar
+                  </button>
                 </div>
-                <button type="button" onClick={cancelEdit}
-                  className="w-9 h-9 flex items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800 active:scale-90 transition-all">
-                  <X size={16} className="text-zinc-500" />
-                </button>
+
+                {/* Payer selector */}
+                <div className="flex items-center justify-center gap-2 pb-3">
+                  <span className="text-[13px]" style={{ color: '#8D90A5' }}>Pagó</span>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      id="expense-payer-select"
+                      aria-label="Seleccionar pagador"
+                      onClick={() => setShowPayerDropdown(p => !p)}
+                      className="flex items-center gap-2 h-9 pl-2 pr-3 rounded-full border transition active:scale-95"
+                      style={{ background: '#EEF2FF', borderColor: '#C7D2FE' }}
+                    >
+                      <div
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
+                        style={{ backgroundColor: roommates.find(r => r.id === paidBy)?.color || '#6366f1' }}
+                      >
+                        {roommates.find(r => r.id === paidBy)?.name.charAt(0) || '?'}
+                      </div>
+                      <span className="text-[13px] font-semibold text-indigo-700">
+                        {roommates.find(r => r.id === paidBy)?.name || 'Seleccionar'}
+                      </span>
+                      <ChevronDown size={14} className="text-indigo-400" />
+                    </button>
+                    {showPayerDropdown && (
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-white rounded-2xl shadow-lg overflow-hidden z-20 min-w-[150px]" style={{ border: '1px solid rgba(80,80,120,0.10)' }}>
+                        {roommates.map(r => (
+                          <button
+                            key={r.id}
+                            type="button"
+                            onClick={() => {
+                              setPaidBy(r.id);
+                              if (macroCategory === 'personal') {
+                                const percs: Record<string, string> = {};
+                                roommates.forEach(rm => { percs[rm.id] = rm.id === r.id ? '100' : '0'; });
+                                setCustomPercentages(percs);
+                              }
+                              setShowPayerDropdown(false);
+                            }}
+                            className={`w-full flex items-center gap-2.5 px-4 py-2.5 transition hover:bg-indigo-50 ${paidBy === r.id ? 'bg-indigo-50' : ''}`}
+                          >
+                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0" style={{ backgroundColor: r.color }}>{r.name.charAt(0)}</div>
+                            <span className={`text-[14px] font-medium flex-1 text-left ${paidBy === r.id ? 'text-indigo-700' : 'text-gray-700'}`}>{r.name}</span>
+                            {paidBy === r.id && <Check size={14} className="text-indigo-600" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {/* Body — scrolleable */}
+              {/* ── Scrollable form ── */}
               <form
                 id="expense-form"
+                ref={formRef}
                 onSubmit={handleSubmit}
-                className="overflow-y-auto flex-1 min-h-0 px-6 py-4 space-y-5"
+                className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
                 style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+                onClick={() => showPayerDropdown && setShowPayerDropdown(false)}
               >
 
-                {/* 1. Tipo de gasto + link cargar recurrente */}
-                <div className="flex items-center gap-2">
-                  {([
-                    { value: 'hogar', label: '🏠 Hogar' },
-                    { value: 'personal', label: '👤 Personal' },
-                  ] as const).map(opt => (
-                    <button key={opt.value} type="button"
-                      onClick={() => {
-                        setMacroCategory(opt.value);
-                        setShowNewCatInput(false);
-                        setNewCatName('');
-                        if (opt.value === 'personal') {
-                          setCategory(PERSONAL_DEFAULT_CATEGORIES[0]);
-                          setSplitType('porcentaje');
-                          const percs: Record<string, string> = {};
-                          roommates.forEach(r => { percs[r.id] = r.id === paidBy ? '100' : '0'; });
-                          setCustomPercentages(percs);
-                        } else {
-                          setCategory(HOGAR_DEFAULT_CATEGORIES[0]);
-                          setSplitType(defaultSplitType);
-                          const defaultPercs = Object.keys(defaultSplitPercentages).length > 0
-                            ? Object.fromEntries(Object.entries(defaultSplitPercentages).map(([k, v]) => [k, String(v)]))
-                            : Object.fromEntries(roommates.map(r => [r.id, String(Math.round(100 / roommates.length))]));
-                          setCustomPercentages(defaultPercs);
-                        }
-                      }}
-                      className={`h-9 px-4 rounded-xl text-[13px] font-semibold transition-all active:scale-95 ${macroCategory === opt.value ? 'bg-indigo-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'}`}>
-                      {opt.label}
-                    </button>
-                  ))}
-                  {bills.length > 0 && !associatedBillId && (
-                    <button type="button" onClick={() => setShowRecurringPicker(p => !p)}
-                      className="ml-auto flex items-center gap-1 text-[12px] font-medium text-indigo-500 hover:text-indigo-700 transition">
-                      🔁 <span>Cargar recurrente</span>
-                    </button>
-                  )}
-                  {associatedBillId && (
-                    <button type="button" onClick={() => { setAssociatedBillId(''); if (title.startsWith('[Pago Recurrente]')) setTitle(''); setShowRecurringPicker(false); }}
-                      className="ml-auto flex items-center gap-1 text-[12px] font-medium text-rose-400 hover:text-rose-600 transition">
-                      🔁 <span className="line-clamp-1 max-w-[100px]">{bills.find(b => b.id === associatedBillId)?.name}</span> <X size={11} />
-                    </button>
-                  )}
-                </div>
-
-                {/* Picker de recurrente (colapsable) */}
-                {showRecurringPicker && bills.length > 0 && (
-                  <div id="expense-fixed-bill-picker" className="animate-fadeIn space-y-2">
-                    <select
-                      id="select-fixed-bill-dropdown"
-                      value={associatedBillId}
-                      onChange={(e) => {
-                        const selectedId = e.target.value;
-                        setAssociatedBillId(selectedId);
-                        if (selectedId === '') {
-                          if (title.startsWith('[Pago Recurrente]')) setTitle('');
-                        } else {
-                          const b = bills.find(b => b.id === selectedId);
-                          if (b) {
-                            setTitle(`[Pago Recurrente] ${b.name}`);
-                            setCategory(b.category || 'servicio');
-                            setAmountInput(b.amount);
-                            if (b.currency) setCurrency(b.currency);
-                            if (b.exchangeRate) setExchangeRateInput(b.exchangeRate);
-                            if (b.paidBy) setPaidBy(b.paidBy);
-                            if (b.splitType && b.splitType !== 'no_dividir') {
-                              setSplitType(b.splitType as SplitType);
-                              if (b.splits) setCustomPercentages(Object.fromEntries(Object.entries(b.splits).map(([k, v]) => [k, String(v)])));
+                {/* Cargar desde recurrente */}
+                {bills.length > 0 && !editingExpenseId && (
+                  <div>
+                    {!associatedBillId ? (
+                      <button type="button" onClick={() => setShowRecurringPicker(p => !p)}
+                        className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[12px] font-medium text-indigo-500 hover:text-indigo-700 transition">
+                        <RefreshCw size={13} aria-hidden="true" />
+                        Cargar desde recurrente
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2 px-4 py-2 rounded-2xl" style={{ background: '#EEF2FF', border: '1px solid #C7D2FE' }}>
+                        <RefreshCw size={14} className="text-indigo-500 shrink-0" aria-hidden="true" />
+                        <span className="flex-1 text-[13px] font-medium text-indigo-700 truncate">{bills.find(b => b.id === associatedBillId)?.name}</span>
+                        <button type="button" aria-label="Quitar recurrente" onClick={() => { setAssociatedBillId(''); if (title.startsWith('[Pago Recurrente]')) setTitle(''); setShowRecurringPicker(false); }} className="text-rose-400 hover:text-rose-600 transition p-1"><X size={13} /></button>
+                      </div>
+                    )}
+                    {showRecurringPicker && !associatedBillId && (
+                      <div id="expense-fixed-bill-picker" className="mt-2 bg-white rounded-2xl p-3 space-y-2 animate-fadeIn" style={{ border: '1px solid rgba(80,80,120,0.10)' }}>
+                        <select
+                          id="select-fixed-bill-dropdown"
+                          value={associatedBillId}
+                          onChange={(e) => {
+                            const selectedId = e.target.value;
+                            setAssociatedBillId(selectedId);
+                            if (selectedId !== '') {
+                              const b = bills.find(b => b.id === selectedId);
+                              if (b) {
+                                setTitle(`[Pago Recurrente] ${b.name}`);
+                                setCategory(b.category || 'servicio');
+                                setAmountInput(b.amount);
+                                if (b.currency) setCurrency(b.currency);
+                                if (b.exchangeRate) setExchangeRateInput(b.exchangeRate);
+                                if (b.paidBy) setPaidBy(b.paidBy);
+                                if (b.splitType && b.splitType !== 'no_dividir') {
+                                  setSplitType(b.splitType as SplitType);
+                                  if (b.splits) setCustomPercentages(Object.fromEntries(Object.entries(b.splits).map(([k, v]) => [k, String(v)])));
+                                }
+                                setShowRecurringPicker(false);
+                              }
                             }
-                            setShowRecurringPicker(false);
-                          }
-                        }
-                      }}
-                      className="w-full h-11 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                      <option value="">— Elegir gasto recurrente —</option>
-                      {bills.map(b => (
-                        <option key={b.id} value={b.id}>{b.name} ({b.currency === 'USD' ? '$' : 'S/'} {b.amount})</option>
-                      ))}
-                    </select>
+                          }}
+                          className="w-full h-11 px-3 rounded-xl bg-gray-50 text-gray-900 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                          style={{ border: '1px solid rgba(80,80,120,0.12)' }}
+                        >
+                          <option value="">— Elegir gasto recurrente —</option>
+                          {bills.map(b => <option key={b.id} value={b.id}>{b.name} ({b.currency === 'USD' ? '$' : 'S/'} {b.amount})</option>)}
+                        </select>
+                      </div>
+                    )}
                     {associatedBillId && (
-                      <div>
-                        <label className="text-[11px] text-zinc-400 font-medium">Mes del pago</label>
+                      <div className="mt-2">
+                        <label className="text-[11px] font-medium" style={{ color: '#8D90A5' }}>Mes del pago</label>
                         <select id="select-fixed-bill-month-dropdown" value={recurrentBillMonth}
                           onChange={(e) => setRecurrentBillMonth(e.target.value)}
-                          className="mt-1 w-full h-10 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                          className="mt-1 w-full h-10 px-3 rounded-xl bg-gray-50 text-gray-900 text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                          style={{ border: '1px solid rgba(80,80,120,0.12)' }}>
                           {getSurroundingMonths().map(m => <option key={m} value={m}>{m}</option>)}
                         </select>
                       </div>
@@ -836,202 +901,190 @@ export default function ExpensesTab({
                   </div>
                 )}
 
-                {/* 2. Descripción */}
-                <div>
-                  <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
-                    Descripción
-                  </label>
-                  <div className="mt-1 flex gap-2 items-center">
+                {/* 1. Monto — tarjeta protagonista */}
+                <div className="bg-white rounded-3xl p-5" style={{ border: '1px solid rgba(80,80,120,0.08)', boxShadow: '0 2px 12px rgba(79,70,229,0.06)' }}>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      aria-label="Cambiar moneda"
+                      onClick={() => { const n = currency === 'PEN' ? 'USD' : 'PEN'; setCurrency(n); setExchangeRateInput(n === 'USD' ? 3.80 : 1); }}
+                      className="flex items-center gap-1 h-11 px-3 rounded-xl font-bold text-[14px] text-indigo-700 transition hover:opacity-80 shrink-0"
+                      style={{ background: '#EEF2FF', border: '1px solid #C7D2FE' }}
+                    >
+                      {currency === 'PEN' ? 'S/' : 'US$'}
+                      <ChevronDown size={13} className="text-indigo-400" />
+                    </button>
                     <input
-                      id="expense-title-input"
-                      type="text"
+                      id="expense-amount-input"
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
                       required
-                      value={title}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setTitle(val);
-                        if (!associatedBillId) setCategory(inferCategoryFromName(val));
-                      }}
-                      placeholder="Ej. Mercado Wong, Luz junio..."
-                      className="flex-1 h-12 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[15px] focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      value={amountInput}
+                      onChange={(e) => setAmountInput(e.target.value === '' ? '' : Number(e.target.value))}
+                      placeholder="0.00"
+                      className="flex-1 text-[32px] font-semibold bg-transparent border-none outline-none min-w-0"
+                      style={{ color: '#242536', caretColor: '#4F46E5' }}
                     />
-                    {receiptImage ? (
-                      <div className="relative flex-shrink-0">
-                        <img src={receiptImage} alt="Comprobante"
-                          className="w-12 h-12 object-cover rounded-xl border border-zinc-200 dark:border-zinc-700 cursor-pointer"
-                          onClick={() => setLightboxImage(receiptImage)} />
-                        <button type="button" onClick={() => setReceiptImage(undefined)}
-                          className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center">
-                          <X size={9} />
-                        </button>
-                      </div>
-                    ) : (
-                      <button type="button" onClick={() => imageInputRef.current?.click()}
-                        className="w-12 h-12 flex-shrink-0 flex items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 dark:border-zinc-600 text-zinc-400 hover:border-indigo-400 hover:text-indigo-500 transition active:scale-95">
-                        <Camera size={16} />
-                      </button>
-                    )}
-                    <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
-                  </div>
-                </div>
-
-                {/* 3. Monto */}
-                <div>
-                  <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Monto</label>
-                  <div className="mt-1 flex gap-2 items-center">
-                    {/* Moneda selector compacto dentro del campo */}
-                    <div className="relative flex-1">
-                      <div className="absolute left-0 top-0 bottom-0 flex">
-                        {(['PEN', 'USD'] as const).map(c => (
-                          <button key={c} type="button"
-                            onClick={() => { setCurrency(c); setExchangeRateInput(c === 'USD' ? 3.80 : 1); }}
-                            className={`h-full px-2 text-[12px] font-bold rounded-l-xl transition-all first:rounded-l-xl last:rounded-none ${currency === c ? 'bg-indigo-600 text-white' : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400'}`}>
-                            {c === 'PEN' ? 'S/' : '$'}
-                          </button>
-                        ))}
-                      </div>
-                      <input
-                        id="expense-amount-input"
-                        type="number" inputMode="decimal" step="0.01" required
-                        value={amountInput}
-                        onChange={(e) => setAmountInput(e.target.value === '' ? '' : Number(e.target.value))}
-                        placeholder="0.00"
-                        className="w-full h-14 pl-16 pr-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-bold text-[22px] focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
                   </div>
                   {currency === 'USD' && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <label className="text-[11px] text-zinc-400 font-medium shrink-0">Tipo de cambio S//$</label>
+                    <div className="flex items-center gap-2 mt-3 pt-3" style={{ borderTop: '1px solid rgba(80,80,120,0.08)' }}>
+                      <label className="text-[11px] font-medium shrink-0" style={{ color: '#8D90A5' }}>Tipo de cambio S//$</label>
                       <input type="number" inputMode="decimal" step="0.001" value={exchangeRateInput}
                         onChange={(e) => setExchangeRateInput(e.target.value === '' ? '' : Number(e.target.value))}
                         placeholder="3.80"
-                        className="flex-1 h-9 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                        className="flex-1 h-9 px-3 rounded-xl bg-gray-50 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                        style={{ border: '1px solid rgba(80,80,120,0.10)' }} />
                     </div>
+                  )}
+                  <p className="text-[12px] mt-2" style={{ color: '#8D90A5' }}>Ingresa el monto del gasto</p>
+                </div>
+
+                {/* 2. Tipo de gasto */}
+                <div className="bg-white rounded-2xl p-1 flex" style={{ border: '1px solid rgba(80,80,120,0.08)', boxShadow: '0 2px 8px rgba(79,70,229,0.04)' }}>
+                  {([
+                    { value: 'hogar' as const, label: 'Hogar', Icon: Home },
+                    { value: 'personal' as const, label: 'Personal', Icon: User },
+                  ]).map(({ value: val, label, Icon }) => {
+                    const active = macroCategory === val;
+                    return (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => {
+                          setMacroCategory(val);
+                          setShowNewCatInput(false);
+                          setNewCatName('');
+                          if (val === 'personal') {
+                            setCategory(PERSONAL_DEFAULT_CATEGORIES[0]);
+                            setSplitType('porcentaje');
+                            const percs: Record<string, string> = {};
+                            roommates.forEach(r => { percs[r.id] = r.id === paidBy ? '100' : '0'; });
+                            setCustomPercentages(percs);
+                          } else {
+                            setCategory(HOGAR_DEFAULT_CATEGORIES[0]);
+                            setSplitType(defaultSplitType);
+                            const dp = Object.keys(defaultSplitPercentages).length > 0
+                              ? Object.fromEntries(Object.entries(defaultSplitPercentages).map(([k, v]) => [k, String(v)]))
+                              : Object.fromEntries(roommates.map(r => [r.id, String(Math.round(100 / roommates.length))]));
+                            setCustomPercentages(dp);
+                          }
+                        }}
+                        className={`flex-1 flex items-center justify-center gap-2 h-11 rounded-xl text-[14px] font-medium transition-all active:scale-[0.98] ${active ? 'text-indigo-700' : 'text-gray-500 hover:text-gray-700'}`}
+                        style={active ? { background: '#EEF2FF', border: '1px solid #C7D2FE' } : {}}
+                        aria-pressed={active}
+                      >
+                        <Icon size={16} aria-hidden="true" />
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* 3. Descripción + cámara */}
+                <div className="bg-white rounded-2xl flex items-center gap-3 px-4 h-[56px]" style={{ border: '1px solid rgba(80,80,120,0.08)', boxShadow: '0 2px 8px rgba(79,70,229,0.04)' }}>
+                  <FileText size={18} className="shrink-0" style={{ color: '#C4C6D8' }} aria-hidden="true" />
+                  <input
+                    id="expense-title-input"
+                    type="text"
+                    required
+                    value={title}
+                    onChange={(e) => { const v = e.target.value; setTitle(v); if (!associatedBillId) setCategory(inferCategoryFromName(v)); }}
+                    placeholder="Ej. Mercado Wong, luz de junio..."
+                    className="flex-1 text-[14px] bg-transparent border-none outline-none"
+                    style={{ color: '#242536' }}
+                  />
+                  <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+                  {receiptImage ? (
+                    <div className="relative shrink-0">
+                      <img src={receiptImage} alt="Comprobante" className="w-9 h-9 object-cover rounded-xl cursor-pointer" style={{ border: '1px solid rgba(80,80,120,0.12)' }} onClick={() => setLightboxImage(receiptImage)} />
+                      <button type="button" aria-label="Eliminar foto" onClick={() => setReceiptImage(undefined)} className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full flex items-center justify-center"><X size={8} /></button>
+                    </div>
+                  ) : (
+                    <button type="button" aria-label="Adjuntar recibo" onClick={() => imageInputRef.current?.click()} className="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl transition active:scale-90 hover:bg-indigo-50" style={{ color: '#8D90A5' }}>
+                      <Camera size={18} />
+                    </button>
                   )}
                 </div>
 
-                {/* 4. Quién pagó */}
-                <div>
-                  <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
-                    {macroCategory === 'personal' ? 'Gasto personal de' : '¿Quién pagó?'}
-                  </label>
-                  <div className="mt-2 flex gap-2 flex-wrap">
-                    {roommates.map(r => (
-                      <button key={r.id} type="button" id={r.id === paidBy ? 'expense-payer-select' : undefined}
-                        onClick={() => {
-                          setPaidBy(r.id);
-                          if (macroCategory === 'personal') {
-                            const percs: Record<string, string> = {};
-                            roommates.forEach(rm => { percs[rm.id] = rm.id === r.id ? '100' : '0'; });
-                            setCustomPercentages(percs);
-                          }
-                        }}
-                        className={`h-9 px-4 rounded-xl text-[14px] font-medium transition active:scale-95 ${paidBy === r.id ? 'bg-indigo-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300'}`}>
-                        {r.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 5. División — solo para Hogar, colapsada por defecto */}
+                {/* 4. División — solo Hogar */}
                 {macroCategory === 'hogar' && (
                   <div>
-                    <button type="button" onClick={() => setShowSplitConfig(p => !p)}
-                      className="w-full flex items-center justify-between group">
-                      <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide cursor-pointer">División</label>
-                      <span className="text-[12px] text-indigo-500 font-semibold group-hover:text-indigo-700 transition">
-                        {showSplitConfig ? 'Ocultar' : (() => {
-                          if (splitType === 'equitativo') return `Equitativo · ${roommates.map((r, i) => { const base = parseFloat((100/roommates.length).toFixed(1)); const d = i === roommates.length-1 ? +(100-base*(roommates.length-1)).toFixed(1) : base; return `${r.name} ${d}%`; }).join(' · ')}`;
-                          if (splitType === 'proporcional') return 'Por ingresos · Cambiar';
-                          return roommates.map(r => `${r.name} ${customPercentages[r.id] || 0}%`).join(' · ');
-                        })()}
+                    <button
+                      type="button"
+                      onClick={() => setShowSplitConfig(p => !p)}
+                      className="w-full bg-white rounded-2xl flex items-center gap-3 px-4 h-[56px] transition hover:brightness-[0.98] active:scale-[0.99]"
+                      style={{ border: '1px solid rgba(80,80,120,0.08)', boxShadow: '0 2px 8px rgba(79,70,229,0.04)' }}
+                    >
+                      <Split size={18} className="shrink-0" style={{ color: '#C4C6D8' }} aria-hidden="true" />
+                      <span className="flex-1 text-left text-[14px]" style={{ color: '#242536' }}>
+                        Se divide: {renderSplitSummary()}
                       </span>
+                      <span className="text-[13px] font-medium text-indigo-600 shrink-0">Editar</span>
+                      <ChevronRight size={16} className="text-indigo-400 shrink-0" />
                     </button>
 
                     {showSplitConfig && (
-                      <div className="mt-2 animate-fadeIn space-y-3">
+                      <div className="mt-2 bg-white rounded-2xl p-4 space-y-3 animate-fadeIn" style={{ border: '1px solid rgba(80,80,120,0.08)' }}>
                         <div className="grid grid-cols-3 gap-2">
-                          {[
+                          {([
                             { id: 'split-type-equitativo', value: 'equitativo' as SplitType, label: 'Equitativo' },
                             { id: 'split-type-proporcional', value: 'proporcional' as SplitType, label: 'Por ingresos' },
                             { id: 'split-type-porcentaje', value: 'porcentaje' as SplitType, label: '% personalizado' },
-                          ].map(opt => (
+                          ]).map(opt => (
                             <button key={opt.value} id={opt.id} type="button" onClick={() => setSplitType(opt.value)}
-                              className={`h-10 rounded-xl text-[13px] font-semibold transition active:scale-95 ${splitType === opt.value ? 'bg-indigo-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'}`}>
+                              className={`h-10 rounded-xl text-[12px] font-semibold transition active:scale-95 ${splitType === opt.value ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
                               {opt.label}
                             </button>
                           ))}
                         </div>
-
                         {splitType === 'equitativo' && (
-                          <div className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl space-y-1">
+                          <div className="p-3 bg-gray-50 rounded-xl space-y-1.5">
                             {roommates.map((r, i) => {
                               const base = parseFloat((100 / roommates.length).toFixed(1));
                               const display = i === roommates.length - 1 ? +(100 - base * (roommates.length - 1)).toFixed(1) : base;
                               return (
                                 <div key={r.id} className="flex items-center justify-between text-[13px]">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: r.color }} />
-                                    <span className="text-zinc-700 dark:text-zinc-300 font-medium">{r.name}</span>
-                                  </div>
-                                  <span className="text-zinc-500 dark:text-zinc-400 font-semibold">{display}%</span>
+                                  <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: r.color }} /><span className="font-medium" style={{ color: '#242536' }}>{r.name}</span></div>
+                                  <span className="font-semibold" style={{ color: '#8D90A5' }}>{display}%</span>
                                 </div>
                               );
                             })}
                           </div>
                         )}
-
-                        {splitType === 'proporcional' && (
-                          totalIncome <= 0 ? (
-                            <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-xl text-[13px] text-amber-800 dark:text-amber-300 space-y-2">
-                              <p className="font-semibold flex items-center gap-1.5"><AlertTriangle size={14} /> Faltan ingresos configurados</p>
-                              <button type="button" onClick={() => { cancelEdit(); onNavigateTab?.('budget'); }}
-                                className="flex items-center gap-1 text-[12px] font-bold text-amber-700 dark:text-amber-400 underline">
-                                Ir a Depa <ArrowRight size={11} />
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl space-y-1">
-                              {roommates.map(r => {
-                                const pct = totalIncome > 0 ? (r.income / totalIncome * 100) : 0;
-                                return (
-                                  <div key={r.id} className="flex items-center justify-between text-[13px]">
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: r.color }} />
-                                      <span className="text-zinc-700 dark:text-zinc-300 font-medium">{r.name}</span>
-                                    </div>
-                                    <span className="text-zinc-500 dark:text-zinc-400 font-semibold">{pct.toFixed(1)}%</span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )
-                        )}
-
+                        {splitType === 'proporcional' && (totalIncome <= 0 ? (
+                          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[13px] text-amber-800 space-y-2">
+                            <p className="font-semibold flex items-center gap-1.5"><AlertTriangle size={14} /> Faltan ingresos configurados</p>
+                            <button type="button" onClick={() => { cancelEdit(); onNavigateTab?.('budget'); }} className="flex items-center gap-1 text-[12px] font-bold text-amber-700 underline">Ir a Depa <ArrowRight size={11} /></button>
+                          </div>
+                        ) : (
+                          <div className="p-3 bg-gray-50 rounded-xl space-y-1.5">
+                            {roommates.map(r => {
+                              const pct = totalIncome > 0 ? (r.income / totalIncome * 100) : 0;
+                              return (
+                                <div key={r.id} className="flex items-center justify-between text-[13px]">
+                                  <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: r.color }} /><span className="font-medium" style={{ color: '#242536' }}>{r.name}</span></div>
+                                  <span className="font-semibold" style={{ color: '#8D90A5' }}>{pct.toFixed(1)}%</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ))}
                         {splitType === 'porcentaje' && (
                           <div className="space-y-2">
                             <div className="flex items-center justify-between">
                               <span className={`text-[12px] font-semibold ${Math.abs(roommates.reduce((a, r) => a + (parseFloat(customPercentages[r.id]) || 0), 0) - 100) < 0.1 ? 'text-emerald-500' : 'text-amber-500'}`}>
                                 Total: {roommates.reduce((a, r) => a + (parseFloat(customPercentages[r.id]) || 0), 0).toFixed(1)}%
                               </span>
-                              <button type="button"
-                                onClick={() => { const s = Math.round((100 / roommates.length) * 100) / 100; const p: Record<string,string> = {}; roommates.forEach((r, i) => { p[r.id] = String(i === roommates.length - 1 ? Math.round((100 - s * (roommates.length - 1)) * 100) / 100 : s); }); setCustomPercentages(p); }}
-                                className="text-[12px] text-indigo-500 font-semibold">
-                                Restablecer equitativo
-                              </button>
+                              <button type="button" onClick={() => { const s = Math.round((100 / roommates.length) * 100) / 100; const p: Record<string,string> = {}; roommates.forEach((r, i) => { p[r.id] = String(i === roommates.length - 1 ? Math.round((100 - s * (roommates.length - 1)) * 100) / 100 : s); }); setCustomPercentages(p); }} className="text-[12px] text-indigo-500 font-semibold">Restablecer equitativo</button>
                             </div>
                             {roommates.map(r => (
                               <div key={r.id} className="flex items-center gap-3">
-                                <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0"
-                                  style={{ backgroundColor: r.color }}>{r.name.charAt(0)}</div>
-                                <span className="flex-1 text-[14px] text-zinc-800 dark:text-zinc-200 font-medium">{r.name}</span>
+                                <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[11px] font-bold shrink-0" style={{ backgroundColor: r.color }}>{r.name.charAt(0)}</div>
+                                <span className="flex-1 text-[14px] font-medium" style={{ color: '#242536' }}>{r.name}</span>
                                 <div className="relative w-24">
-                                  <input type="number" inputMode="decimal" min={0} max={100}
-                                    value={customPercentages[r.id] ?? ''}
-                                    onChange={(e) => handlePercentageChange(r.id, e.target.value)}
-                                    className="w-full h-10 pr-7 pl-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[14px] font-semibold text-right focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 text-[13px] pointer-events-none">%</span>
+                                  <input type="number" inputMode="decimal" min={0} max={100} value={customPercentages[r.id] ?? ''} onChange={(e) => handlePercentageChange(r.id, e.target.value)} className="w-full h-10 pr-7 pl-3 rounded-xl bg-gray-100 text-gray-900 text-[14px] font-semibold text-right focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[13px] pointer-events-none">%</span>
                                 </div>
                               </div>
                             ))}
@@ -1042,116 +1095,138 @@ export default function ExpensesTab({
                   </div>
                 )}
 
-                {/* 6. Subcategoría */}
-                <div>
-                  <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Categoría</label>
-                  <div className="mt-2 flex gap-2 flex-wrap">
+                {/* 5. Categorías */}
+                <div className="space-y-2">
+                  <label className="text-[11px] font-semibold uppercase tracking-wide px-1" style={{ color: '#8D90A5' }}>Categoría</label>
+                  <div className="flex gap-2 flex-wrap">
                     {(() => {
-                      const allCats = macroCategory === 'hogar'
+                      const allCats = (macroCategory === 'hogar'
                         ? [...HOGAR_DEFAULT_CATEGORIES, ...customHogarCategories]
-                        : [...PERSONAL_DEFAULT_CATEGORIES, ...customPersonalCategories];
-                      const visible = showAllCategories ? allCats : allCats.slice(0, 4);
+                        : [...PERSONAL_DEFAULT_CATEGORIES, ...customPersonalCategories]) as string[];
+                      const selectedIdx = allCats.indexOf(category);
+                      const VISIBLE = 4;
+                      let visibleCats: string[];
+                      if (showAllCategories) {
+                        visibleCats = allCats;
+                      } else if (selectedIdx >= VISIBLE) {
+                        visibleCats = [...allCats.slice(0, VISIBLE - 1), category];
+                      } else {
+                        visibleCats = allCats.slice(0, VISIBLE);
+                      }
+                      const hasMore = !showAllCategories && allCats.length > VISIBLE;
                       return (
                         <>
-                          {visible.map(cat => {
-                            const s = CATEGORY_LABELS[cat];
+                          {visibleCats.map(cat => {
                             const active = category === cat;
+                            const CatIcon = CATEGORY_ICON_MAP[cat] || MoreHorizontal;
                             return (
                               <button key={cat} type="button" onClick={() => setCategory(cat)}
-                                className={`h-8 px-3 rounded-xl text-[12px] font-medium transition active:scale-95 ${active ? `${s ? s.bg : 'bg-indigo-50 dark:bg-indigo-950/40'} ${s ? s.text : 'text-indigo-600 dark:text-indigo-400'} ring-2 ring-indigo-500 ring-offset-1` : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'}`}>
+                                className={`flex items-center gap-1.5 h-9 px-3 rounded-xl text-[13px] font-medium transition active:scale-95 ${active ? 'text-indigo-700 bg-white' : 'bg-white text-gray-500 hover:text-gray-700'}`}
+                                style={active ? { border: '1.5px solid #6366f1' } : { border: '1px solid rgba(80,80,120,0.10)' }}
+                              >
+                                <CatIcon size={14} className={active ? 'text-indigo-600' : 'text-gray-400'} aria-hidden="true" />
                                 {getCategoryLabel(cat)}
                               </button>
                             );
                           })}
-                          {allCats.length > 4 && !showAllCategories && (
+                          {hasMore && (
                             <button type="button" onClick={() => setShowAllCategories(true)}
-                              className="h-8 px-3 rounded-xl text-[12px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:text-indigo-500 transition active:scale-95">
-                              +{allCats.length - 4} más
+                              className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-[13px] font-medium transition active:scale-95 bg-white text-gray-400 hover:text-gray-600"
+                              style={{ border: '1px solid rgba(80,80,120,0.10)' }}>
+                              <MoreHorizontal size={14} aria-hidden="true" /> Más
+                            </button>
+                          )}
+                          {showAllCategories && !showNewCatInput && (
+                            <button type="button" onClick={() => setShowNewCatInput(true)}
+                              className="flex items-center gap-1 h-9 px-3 rounded-xl text-[12px] font-medium transition active:scale-95 text-gray-400 hover:text-indigo-500"
+                              style={{ border: '1px dashed rgba(80,80,120,0.20)' }}>
+                              + Crear
                             </button>
                           )}
                         </>
                       );
                     })()}
-                    {!showNewCatInput ? (
+                    {!showAllCategories && !showNewCatInput && (
                       <button type="button" onClick={() => { setShowAllCategories(true); setShowNewCatInput(true); }}
-                        className="h-8 px-3 rounded-xl text-[12px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition active:scale-95">
+                        className="h-9 px-3 rounded-xl text-[12px] font-medium text-gray-400 hover:text-indigo-500 transition active:scale-95"
+                        style={{ border: '1px dashed rgba(80,80,120,0.20)' }}>
                         + Crear
                       </button>
-                    ) : (
-                      <div className="flex items-center gap-1.5 mt-1 w-full">
-                        <input autoFocus type="text" value={newCatName} onChange={e => setNewCatName(e.target.value)}
-                          placeholder="Nombre de categoría"
-                          className="flex-1 h-8 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-[12px] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              const name = newCatName.trim().toLowerCase();
-                              if (!name) return;
-                              macroCategory === 'hogar' ? onAddHogarCategory?.(name) : onAddPersonalCategory?.(name);
-                              setCategory(name);
-                              setNewCatName('');
-                              setShowNewCatInput(false);
-                            }
-                            if (e.key === 'Escape') { setShowNewCatInput(false); setNewCatName(''); }
-                          }} />
-                        <button type="button" onClick={() => {
-                          const name = newCatName.trim().toLowerCase();
-                          if (!name) return;
-                          macroCategory === 'hogar' ? onAddHogarCategory?.(name) : onAddPersonalCategory?.(name);
-                          setCategory(name);
-                          setNewCatName('');
-                          setShowNewCatInput(false);
-                        }} className="h-8 px-3 rounded-xl bg-indigo-600 text-white text-[12px] font-semibold">OK</button>
-                        <button type="button" onClick={() => { setShowNewCatInput(false); setNewCatName(''); }}
-                          className="h-8 px-2 rounded-xl bg-zinc-200 dark:bg-zinc-700 text-zinc-500 text-[12px]">✕</button>
-                      </div>
                     )}
                   </div>
-                </div>
-
-                {/* 7. Fecha compacta */}
-                <div>
-                  {!showDatePicker ? (
-                    <button type="button" onClick={() => setShowDatePicker(true)}
-                      className="flex items-center gap-2 text-[13px] text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition">
-                      <Calendar size={14} />
-                      <span>{date === new Date().toISOString().split('T')[0] ? 'Hoy' : date}</span>
-                      <span className="text-indigo-500 font-semibold text-[12px]">Cambiar</span>
-                    </button>
-                  ) : (
-                    <div className="space-y-1 animate-fadeIn">
-                      <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Fecha</label>
-                      <input type="date" required value={date} onChange={(e) => setDate(e.target.value)}
-                        className="w-full h-11 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  {showNewCatInput && (
+                    <div className="flex items-center gap-1.5">
+                      <input autoFocus type="text" value={newCatName} onChange={e => setNewCatName(e.target.value)}
+                        placeholder="Nombre de categoría"
+                        className="flex-1 h-9 px-3 rounded-xl bg-gray-100 text-[12px] text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') { e.preventDefault(); const n = newCatName.trim().toLowerCase(); if (!n) return; macroCategory === 'hogar' ? onAddHogarCategory?.(n) : onAddPersonalCategory?.(n); setCategory(n); setNewCatName(''); setShowNewCatInput(false); }
+                          if (e.key === 'Escape') { setShowNewCatInput(false); setNewCatName(''); }
+                        }} />
+                      <button type="button" onClick={() => { const n = newCatName.trim().toLowerCase(); if (!n) return; macroCategory === 'hogar' ? onAddHogarCategory?.(n) : onAddPersonalCategory?.(n); setCategory(n); setNewCatName(''); setShowNewCatInput(false); }} className="h-9 px-3 rounded-xl bg-indigo-600 text-white text-[12px] font-semibold">OK</button>
+                      <button type="button" onClick={() => { setShowNewCatInput(false); setNewCatName(''); }} className="h-9 px-2 rounded-xl bg-gray-200 text-gray-500 text-[12px]">✕</button>
                     </div>
                   )}
                 </div>
 
-                {/* 8. Recurrente toggle */}
-                {!editingExpenseId && !associatedBillId && (
-                  <button type="button" onClick={() => setIsRecurring(r => !r)}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border-2 transition-all ${isRecurring ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/30' : 'border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800'}`}>
-                    <div className="text-left">
-                      <p className={`text-[13px] font-bold ${isRecurring ? 'text-indigo-700 dark:text-indigo-300' : 'text-zinc-700 dark:text-zinc-200'}`}>Guardar como gasto recurrente</p>
-                      <p className="text-[11px] text-zinc-400 mt-0.5">{isRecurring ? 'Al guardar podrás cargarlo más rápido la siguiente vez' : 'Actívalo si este gasto se repite cada mes'}</p>
+                {/* 6. Fecha + Recurrente (misma fila) */}
+                <div className="flex gap-2 items-stretch">
+                  {/* Fecha */}
+                  <div className="shrink-0" style={{ flexBasis: '30%', minWidth: '90px' }}>
+                    {!showDatePicker ? (
+                      <button type="button" onClick={() => setShowDatePicker(true)} aria-label="Cambiar fecha"
+                        className="w-full h-[52px] flex items-center justify-center gap-1.5 rounded-2xl bg-white text-[13px] font-medium transition hover:brightness-[0.97] active:scale-[0.98]"
+                        style={{ border: '1px solid rgba(80,80,120,0.08)', boxShadow: '0 2px 8px rgba(79,70,229,0.04)', color: '#242536' }}>
+                        <Calendar size={15} className="text-indigo-400 shrink-0" aria-hidden="true" />
+                        <span className="truncate">{date === new Date().toISOString().split('T')[0] ? 'Hoy' : date.slice(5)}</span>
+                        <ChevronDown size={13} style={{ color: '#8D90A5' }} />
+                      </button>
+                    ) : (
+                      <input type="date" required value={date}
+                        onChange={(e) => { setDate(e.target.value); setShowDatePicker(false); }}
+                        onBlur={() => setShowDatePicker(false)}
+                        autoFocus
+                        className="w-full h-[52px] px-3 rounded-2xl bg-white text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                        style={{ border: '1px solid #6366f1' }}
+                      />
+                    )}
+                  </div>
+
+                  {/* Recurrente */}
+                  {!editingExpenseId && !associatedBillId ? (
+                    <button type="button" onClick={() => setIsRecurring(r => !r)}
+                      className="flex-1 flex items-center gap-2 h-[52px] px-3 rounded-2xl transition active:scale-[0.98]"
+                      style={isRecurring
+                        ? { background: '#EEF2FF', border: '1px solid #C7D2FE', boxShadow: '0 2px 8px rgba(79,70,229,0.06)' }
+                        : { background: 'white', border: '1px solid rgba(80,80,120,0.08)', boxShadow: '0 2px 8px rgba(79,70,229,0.04)' }
+                      }
+                    >
+                      <RefreshCw size={14} className={`shrink-0 ${isRecurring ? 'text-indigo-500' : 'text-gray-400'}`} aria-hidden="true" />
+                      <span className={`flex-1 text-left leading-tight ${isRecurring ? 'text-indigo-700' : 'text-gray-500'}`} style={{ fontSize: 'clamp(10px, 2.5vw, 12px)' }}>
+                        Guardar como gasto recurrente
+                      </span>
+                      <div className={`w-10 h-[22px] rounded-full flex items-center px-0.5 shrink-0 transition-colors ${isRecurring ? 'bg-indigo-600' : 'bg-gray-200'}`} style={{ minWidth: '40px' }}>
+                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${isRecurring ? 'translate-x-[18px]' : 'translate-x-0'}`} />
+                      </div>
+                    </button>
+                  ) : (
+                    <div className="flex-1 h-[52px] rounded-2xl bg-white flex items-center px-3" style={{ border: '1px solid rgba(80,80,120,0.08)' }}>
+                      <span className="text-[12px]" style={{ color: '#8D90A5' }}>Vinculado a recurrente</span>
                     </div>
-                    <div className={`w-11 h-6 rounded-full transition-colors flex items-center px-0.5 ${isRecurring ? 'bg-indigo-600' : 'bg-zinc-300 dark:bg-zinc-600'}`}>
-                      <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform ${isRecurring ? 'translate-x-5' : 'translate-x-0'}`} />
-                    </div>
-                  </button>
-                )}
+                  )}
+                </div>
 
               </form>
 
-              {/* Botón submit — fijo abajo */}
-              <div className="px-6 pt-3 pb-4 flex-shrink-0 border-t border-zinc-100 dark:border-zinc-800">
+              {/* ── CTA ── */}
+              <div className="shrink-0 px-4 pt-3" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 20px)' }}>
                 <button
                   id="submit-expense-button"
                   type="submit"
                   form="expense-form"
-                  className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-semibold text-[15px] rounded-2xl transition flex items-center justify-center gap-2"
+                  className="w-full h-[56px] text-white font-semibold text-[16px] rounded-2xl transition active:scale-[0.98] hover:opacity-90"
+                  style={{ background: '#4338CA' }}
                 >
-                  {editingExpenseId ? <Check size={16} /> : <Plus size={16} />}
                   {editingExpenseId ? 'Guardar cambios' : 'Registrar gasto'}
                 </button>
               </div>
