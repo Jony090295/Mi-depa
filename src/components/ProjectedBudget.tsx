@@ -1,410 +1,403 @@
-import React, { useState } from 'react';
-import { RecurrentBill, Roommate, Expense, ExpenseCategory } from '../types';
-import { Wallet, TrendingDown, TrendingUp, Coins, Home, Zap, Tv, Heart, ShoppingBag, HelpCircle, ChevronRight } from 'lucide-react';
-import { inferCategoryFromName } from '../utils';
+import React, { useState, useMemo } from 'react';
+import { RecurrentBill, Roommate, Expense } from '../types';
+import { ChevronRight, ChevronDown, Download, TrendingDown, Lightbulb } from 'lucide-react';
 
-interface ProjectedBudgetProps {
+interface Props {
   bills: RecurrentBill[];
   roommates: Roommate[];
   expenses: Expense[];
   rentExchangeRate: number;
 }
 
-// ---- Categories — mapped 1:1 from app's ExpenseCategory ----
-const CATEGORIES = [
-  { key: 'alquiler',  label: 'Alquiler',         color: '#6366f1', icon: Home,        },
-  { key: 'servicio',  label: 'Servicios',         color: '#ec4899', icon: Zap,         },
-  { key: 'membresia', label: 'Membresías',        color: '#10b981', icon: Tv,          },
-  { key: 'auto',      label: 'Auto / Transporte', color: '#3b82f6', icon: ShoppingBag, },
-  { key: 'comida',    label: 'Comida',            color: '#f59e0b', icon: ShoppingBag, },
-  { key: 'limpieza',  label: 'Limpieza / Hogar',  color: '#8b5cf6', icon: Home,        },
-  { key: 'otros',     label: 'Otros',             color: '#a1a1aa', icon: HelpCircle,  },
-] as const;
-
-type CatKey = typeof CATEGORIES[number]['key'];
-
-function inferCategory(expCat?: ExpenseCategory, title?: string): CatKey {
-  const cat = expCat && expCat !== 'otros' ? expCat : (title ? inferCategoryFromName(title) : 'otros');
-  if (['alquiler','servicio','membresia','auto','comida','limpieza','otros'].includes(cat)) return cat as CatKey;
-  return 'otros';
-}
-
-function getCurrentMonthYear() {
-  const now = new Date();
-  return `${now.getMonth() + 1}-${now.getFullYear()}`;
-}
-
-function toSoles(amount: number, currency: 'PEN' | 'USD' | undefined, rate: number) {
-  return currency === 'USD' ? amount * rate : amount;
-}
-
-const EXP_CATEGORY_LABELS: Record<string, string> = {
-  alquiler: 'Alquiler',
-  membresia: 'Membresía',
-  auto: 'Auto / Transporte',
-  servicio: 'Servicios',
-  comida: 'Comida / Supermercado',
-  limpieza: 'Limpieza / Hogar',
-  otros: 'Otros gastos',
+const CAT_META: Record<string, { label: string; color: string }> = {
+  alquiler:  { label: 'Alquiler',          color: '#4F46E5' },
+  servicio:  { label: 'Servicios',         color: '#EC4899' },
+  comida:    { label: 'Comida',            color: '#F59E0B' },
+  limpieza:  { label: 'Limpieza',          color: '#10B981' },
+  membresia: { label: 'Membresías',        color: '#3B82F6' },
+  auto:      { label: 'Auto / transporte', color: '#8B5CF6' },
+  salud:     { label: 'Salud',             color: '#EF4444' },
+  ropa:      { label: 'Ropa',              color: '#F97316' },
+  deporte:   { label: 'Deporte',           color: '#06B6D4' },
+  otros:     { label: 'Otros',             color: '#A1A1AA' },
 };
 
-interface LineItem {
-  id: string;
-  name: string;
-  amount: number;
-  category: CatKey;
-  source: 'fijo' | 'gasto';
-  count?: number;
+function catMeta(key: string) {
+  return CAT_META[key] ?? { label: key.charAt(0).toUpperCase() + key.slice(1), color: '#A1A1AA' };
 }
 
-export default function ProjectedBudget({ bills, roommates, expenses, rentExchangeRate }: ProjectedBudgetProps) {
-  const [hoveredCat, setHoveredCat] = useState<CatKey | null>(null);
-  const [openCat, setOpenCat] = useState<CatKey | null>(null);
+function toSoles(amount: number, currency?: string, rate?: number): number {
+  return currency === 'USD' ? amount * (rate || 3.8) : amount;
+}
 
-  const rate = rentExchangeRate || 3.80;
+function fmtS(n: number) {
+  return `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
 
-  // ---- Ingresos ----
-  const totalIncome = roommates.reduce((s, r) => s + r.income, 0);
+function getMonthKey(dateStr: string) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
 
-  // ---- Solo gastos reales registrados este mes ----
-  const currentMY = getCurrentMonthYear();
-  const monthExpenses = expenses.filter(e => {
-    const d = new Date(e.date);
-    return `${d.getMonth() + 1}-${d.getFullYear()}` === currentMY;
-  });
+const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
-  // Group by expense category → one line per group
-  const expGroupMap = new Map<string, { amount: number; cat: CatKey; count: number }>();
-  monthExpenses.forEach(e => {
+function monthLabel(key: string) {
+  const [y, m] = key.split('-');
+  return `${MONTH_NAMES[parseInt(m) - 1]} ${y}`;
+}
+
+function downloadCSV(expenses: Expense[], rate: number, monthKey: string, roommates: Roommate[]) {
+  const rows = expenses.map(e => {
+    const who = roommates.find(r => r.id === e.paidBy)?.name || e.paidBy || '';
     const soles = toSoles(e.amount, e.currency, e.exchangeRate || rate);
-    const cat = inferCategory(e.category, e.title);
-    const key = cat;
-    const prev = expGroupMap.get(key);
-    if (prev) { prev.amount += soles; prev.count++; }
-    else expGroupMap.set(key, { amount: soles, cat, count: 1 });
+    return [e.date, e.title, e.category || 'otros', e.currency || 'PEN', e.amount.toFixed(2), soles.toFixed(2), who].join(',');
   });
-  const allItems: LineItem[] = Array.from(expGroupMap.entries()).map(([key, val]) => ({
-    id: `exp-group-${key}`,
-    name: EXP_CATEGORY_LABELS[key] || 'Otros gastos',
-    amount: val.amount,
-    category: val.cat,
-    source: 'gasto',
-    count: val.count,
-  }));
-  const totalGastos = allItems.reduce((s, i) => s + i.amount, 0);
-  const saldo = totalIncome - totalGastos;
+  const header = 'Fecha,Descripción,Categoría,Moneda,Monto original,Monto (S/),Pagó';
+  const csv = [header, ...rows].join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `gastos-${monthKey}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
-  // ---- Por categoría ----
-  const catTotals = CATEGORIES.map(cat => {
-    const items = allItems.filter(i => i.category === cat.key);
-    const amount = items.reduce((s, i) => s + i.amount, 0);
-    return { ...cat, items, amount };
-  }).filter(c => c.amount > 0 || openCat === c.key);
+export default function Reportes({ roommates, expenses, rentExchangeRate }: Props) {
+  const rate = rentExchangeRate || 3.80;
+  const [activeTab, setActiveTab] = useState<'mes' | 'analisis'>('mes');
+  const [openCat, setOpenCat] = useState<string | null>(null);
 
-  const totalForChart = catTotals.reduce((s, c) => s + c.amount, 0);
+  // ── Month navigation ──
+  const allMonthKeys = useMemo(() => {
+    const keys = Array.from(new Set(expenses.map(e => getMonthKey(e.date)))).sort((a, b) => b.localeCompare(a));
+    if (keys.length === 0) {
+      const now = new Date();
+      keys.push(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+    }
+    return keys;
+  }, [expenses]);
 
-  // Donut slices
-  let acc = 0;
-  const slices = catTotals.map(cat => {
-    const pct = totalForChart > 0 ? (cat.amount / totalForChart) * 100 : 0;
-    const start = acc;
-    acc += pct;
-    return { ...cat, pct, start };
-  });
+  const [monthIdx, setMonthIdx] = useState(0);
+  const selectedMonth = allMonthKeys[monthIdx];
 
-  const displayCat = hoveredCat ? catTotals.find(c => c.key === hoveredCat) : null;
+  // ── Month expenses ──
+  const monthExpenses = useMemo(
+    () => expenses.filter(e => getMonthKey(e.date) === selectedMonth),
+    [expenses, selectedMonth]
+  );
+
+  const totalGastos = useMemo(
+    () => monthExpenses.reduce((s, e) => s + toSoles(e.amount, e.currency, e.exchangeRate || rate), 0),
+    [monthExpenses, rate]
+  );
+
+  // ── By category ──
+  const byCategory = useMemo(() => {
+    const map = new Map<string, Expense[]>();
+    monthExpenses.forEach(e => {
+      const key = e.category || 'otros';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(e);
+    });
+    return Array.from(map.entries())
+      .map(([key, exps]) => ({
+        key,
+        meta: catMeta(key),
+        exps,
+        total: exps.reduce((s, e) => s + toSoles(e.amount, e.currency, e.exchangeRate || rate), 0),
+      }))
+      .sort((a, b) => b.total - a.total);
+  }, [monthExpenses, rate]);
+
+  // ── Análisis: gastos hormiga (se repiten ≥ 2 veces en todo el historial) ──
+  const hormigaItems = useMemo(() => {
+    const titleCount = new Map<string, { total: number; count: number; months: Set<string> }>();
+    expenses.forEach(e => {
+      const key = e.title.toLowerCase().trim();
+      if (!titleCount.has(key)) titleCount.set(key, { total: 0, count: 0, months: new Set() });
+      const r = titleCount.get(key)!;
+      r.total += toSoles(e.amount, e.currency, e.exchangeRate || rate);
+      r.count++;
+      r.months.add(getMonthKey(e.date));
+    });
+    return Array.from(titleCount.entries())
+      .filter(([, v]) => v.count >= 2)
+      .map(([title, v]) => ({
+        title: title.charAt(0).toUpperCase() + title.slice(1),
+        avgPerMonth: v.total / Math.max(v.months.size, 1),
+        yearlyEst: (v.total / Math.max(v.months.size, 1)) * 12,
+        freq: `${v.count}× en ${v.months.size} ${v.months.size === 1 ? 'mes' : 'meses'}`,
+      }))
+      .sort((a, b) => b.yearlyEst - a.yearlyEst)
+      .slice(0, 5);
+  }, [expenses, rate]);
+
+  // ── Análisis: gastos más fuertes ──
+  const topExpenses = useMemo(() => {
+    return [...expenses]
+      .sort((a, b) => toSoles(b.amount, b.currency, b.exchangeRate || rate) - toSoles(a.amount, a.currency, a.exchangeRate || rate))
+      .slice(0, 5)
+      .map(e => ({
+        ...e,
+        soles: toSoles(e.amount, e.currency, e.exchangeRate || rate),
+        color: catMeta(e.category || 'otros').color,
+      }));
+  }, [expenses, rate]);
+
+  const maxTop = topExpenses[0]?.soles || 1;
+
+  // ── Insight: el hormiga con mayor impacto ──
+  const topHormiga = hormigaItems[0];
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
+    <div className="max-w-2xl mx-auto" style={{ background: '#F7F7FC', minHeight: '100vh', paddingBottom: 80 }}>
 
       {/* Header */}
-      <div>
-        <h2 className="text-lg font-black text-zinc-900 dark:text-zinc-100">Presupuesto</h2>
-        <p className="text-xs text-zinc-400 mt-0.5">Basado en tus gastos reales registrados este mes</p>
+      <div className="px-5 pt-5 pb-3">
+        <h2 className="text-[18px] font-semibold text-zinc-900 dark:text-zinc-100">Reportes</h2>
       </div>
 
-      {/* KPI rows */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl overflow-hidden divide-y divide-zinc-50 dark:divide-zinc-800">
-
-        <div className="flex items-center gap-3 px-4 py-3.5">
-          <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center shrink-0">
-            <Coins size={14} className="text-indigo-600 dark:text-indigo-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-semibold text-zinc-400 uppercase tracking-wide">Ingresos</p>
-            <p className="text-[11px] text-zinc-400">{roommates.length} roommates</p>
-          </div>
-          <p className="text-[18px] font-black font-mono text-indigo-600 dark:text-indigo-400 tabular-nums shrink-0">
-            S/{totalIncome.toLocaleString()}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3 px-4 py-3.5">
-          <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/40 flex items-center justify-center shrink-0">
-            <TrendingDown size={14} className="text-rose-500" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-semibold text-zinc-400 uppercase tracking-wide">Gastos</p>
-            <p className="text-[11px] text-zinc-400">{monthExpenses.length} gastos este mes</p>
-          </div>
-          <p className="text-[18px] font-black font-mono text-rose-600 dark:text-rose-400 tabular-nums shrink-0">
-            S/{totalGastos.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-          </p>
-        </div>
-
-        <div className={`flex items-center gap-3 px-4 py-3.5 ${saldo >= 0 ? 'bg-emerald-50/50 dark:bg-emerald-950/10' : 'bg-rose-50/50 dark:bg-rose-950/10'}`}>
-          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${saldo >= 0 ? 'bg-emerald-100 dark:bg-emerald-950/40' : 'bg-rose-100 dark:bg-rose-950/40'}`}>
-            <TrendingUp size={14} className={saldo >= 0 ? 'text-emerald-600' : 'text-rose-500'} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-semibold text-zinc-400 uppercase tracking-wide">Saldo</p>
-            <p className="text-[11px] text-zinc-400">{saldo >= 0 ? 'disponible este mes' : 'en déficit'}</p>
-          </div>
-          <p className={`text-[18px] font-black font-mono tabular-nums shrink-0 ${saldo >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-            {saldo >= 0 ? '+' : ''}S/{saldo.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-          </p>
-        </div>
-
+      {/* Tabs */}
+      <div className="flex border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4">
+        {(['mes', 'analisis'] as const).map(t => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setActiveTab(t)}
+            className={`px-4 py-2.5 text-[13px] font-medium border-b-2 transition-colors ${
+              activeTab === t
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
+            }`}
+          >
+            {t === 'mes' ? 'Por mes' : 'Análisis'}
+          </button>
+        ))}
       </div>
 
-      {/* Barra de consumo */}
-      {totalIncome > 0 && (
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl p-4 space-y-2">
-          <div className="flex justify-between text-[11px] font-bold text-zinc-500">
-            <span>{((totalGastos / totalIncome) * 100).toFixed(0)}% del ingreso usado</span>
-            <span>{(100 - (totalGastos / totalIncome) * 100).toFixed(0)}% libre</span>
+      {/* ── TAB: POR MES ── */}
+      {activeTab === 'mes' && (
+        <div className="px-4 pt-3 space-y-3">
+
+          {/* Navegación de mes */}
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              disabled={monthIdx >= allMonthKeys.length - 1}
+              onClick={() => setMonthIdx(i => i + 1)}
+              className="w-9 h-9 flex items-center justify-center rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-500 disabled:opacity-30 transition"
+            >
+              ‹
+            </button>
+            <span className="text-[15px] font-medium text-zinc-900 dark:text-zinc-100">
+              {monthLabel(selectedMonth)}
+            </span>
+            <button
+              type="button"
+              disabled={monthIdx === 0}
+              onClick={() => setMonthIdx(i => i - 1)}
+              className="w-9 h-9 flex items-center justify-center rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-500 disabled:opacity-30 transition"
+            >
+              ›
+            </button>
           </div>
-          <div className="h-3 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${
-                totalGastos / totalIncome > 0.9 ? 'bg-rose-500' :
-                totalGastos / totalIncome > 0.75 ? 'bg-amber-400' : 'bg-indigo-500'
-              }`}
-              style={{ width: `${Math.min(100, (totalGastos / totalIncome) * 100)}%` }}
-            />
+
+          {/* KPIs */}
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl p-4">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">Total gastado</p>
+              <p className="text-[22px] font-semibold text-rose-600 dark:text-rose-400 mt-1 font-mono tabular-nums">{fmtS(totalGastos)}</p>
+            </div>
+            <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl p-4">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">Gastos</p>
+              <p className="text-[22px] font-semibold text-zinc-900 dark:text-zinc-100 mt-1">{monthExpenses.length}</p>
+            </div>
           </div>
+
+          {/* Exportar */}
+          {monthExpenses.length > 0 && (
+            <button
+              type="button"
+              onClick={() => downloadCSV(monthExpenses, rate, selectedMonth, roommates)}
+              className="w-full flex items-center justify-center gap-2 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-[13px] font-medium transition hover:bg-indigo-100 active:scale-[0.98]"
+            >
+              <Download size={15} aria-hidden="true" />
+              Exportar a CSV
+            </button>
+          )}
+
+          {/* Por categoría */}
+          {byCategory.length === 0 ? (
+            <div className="py-16 text-center text-zinc-400">
+              <TrendingDown size={32} className="mx-auto mb-3 opacity-40" />
+              <p className="text-sm font-medium">Sin gastos en {monthLabel(selectedMonth)}</p>
+            </div>
+          ) : (
+            <div className="space-y-0">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400 mb-2">Por categoría</p>
+
+              {/* Barra proporcional */}
+              <div className="flex gap-0.5 h-1.5 rounded-full overflow-hidden mb-3">
+                {byCategory.map(c => (
+                  <div
+                    key={c.key}
+                    style={{ flex: c.total, background: c.meta.color }}
+                  />
+                ))}
+              </div>
+
+              <div className="space-y-2">
+                {byCategory.map(c => {
+                  const isOpen = openCat === c.key;
+                  const pct = totalGastos > 0 ? (c.total / totalGastos * 100).toFixed(0) : '0';
+                  return (
+                    <div key={c.key}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenCat(isOpen ? null : c.key)}
+                        className="w-full bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl px-4 py-3 flex items-center gap-3 transition hover:border-zinc-200 active:scale-[0.99]"
+                      >
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: c.meta.color }} />
+                        <span className="flex-1 text-left text-[14px] text-zinc-800 dark:text-zinc-200">{c.meta.label}</span>
+                        <span className="text-[12px] text-zinc-400">{c.exps.length} gasto{c.exps.length !== 1 ? 's' : ''}</span>
+                        <span className="text-[15px] font-medium text-zinc-900 dark:text-zinc-100 tabular-nums">{fmtS(c.total)}</span>
+                        <span className="text-[12px] text-zinc-400 w-8 text-right">{pct}%</span>
+                        {isOpen
+                          ? <ChevronDown size={14} className="text-zinc-400 shrink-0" />
+                          : <ChevronRight size={14} className="text-zinc-400 shrink-0" />
+                        }
+                      </button>
+
+                      {isOpen && (
+                        <div className="ml-4 mt-1 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl overflow-hidden">
+                          {c.exps.map((e, i) => {
+                            const who = roommates.find(r => r.id === e.paidBy);
+                            const soles = toSoles(e.amount, e.currency, e.exchangeRate || rate);
+                            return (
+                              <div
+                                key={e.id}
+                                className={`flex items-center gap-3 px-4 py-2.5 ${i > 0 ? 'border-t border-zinc-50 dark:border-zinc-800' : ''}`}
+                              >
+                                <span className="text-[12px] text-zinc-400 w-12 shrink-0">{e.date.slice(5).replace('-', '/')}</span>
+                                <span className="flex-1 text-[13px] text-zinc-600 dark:text-zinc-400 truncate">{e.title}</span>
+                                {who && (
+                                  <div
+                                    className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0"
+                                    style={{ background: who.color }}
+                                  >
+                                    {who.name.charAt(0)}
+                                  </div>
+                                )}
+                                <span className="text-[13px] font-medium text-zinc-800 dark:text-zinc-200 tabular-nums shrink-0">{fmtS(soles)}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Donut + breakdown */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl p-5 space-y-4">
-        <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider block">Distribución por categoría</span>
+      {/* ── TAB: ANÁLISIS ── */}
+      {activeTab === 'analisis' && (
+        <div className="px-4 pt-3 space-y-3">
+          <p className="text-[13px] text-zinc-400">Basado en todos tus gastos registrados</p>
 
-        {allItems.length === 0 ? (
-          <div className="py-12 text-center text-zinc-400 text-sm">
-            <p className="font-medium">Sin datos todavía.</p>
-            <p className="text-xs mt-1">Registra gastos fijos o gastos en "Dividir" para ver la distribución.</p>
-          </div>
-        ) : (
-          <div className="flex flex-col sm:flex-row items-center gap-6">
-            {/* Donut */}
-            <div className="relative w-40 h-40 shrink-0">
-              <svg className="w-full h-full" viewBox="0 0 100 100">
-                {slices.map(slice => {
-                  const R = 36, C = 2 * Math.PI * R;
-                  const dash = (slice.pct / 100) * C;
-                  const rot = (slice.start / 100) * 360 - 90;
-                  const isHovered = hoveredCat === slice.key;
-                  return (
-                    <circle
-                      key={slice.key}
-                      cx="50" cy="50" r={R}
-                      fill="none"
-                      stroke={slice.color}
-                      strokeWidth={isHovered ? 11 : 8}
-                      strokeDasharray={`${dash} ${C}`}
-                      strokeDashoffset={0}
-                      transform={`rotate(${rot} 50 50)`}
-                      strokeLinecap="butt"
-                      className="transition-all duration-150 cursor-pointer"
-                      onMouseEnter={() => setHoveredCat(slice.key as CatKey)}
-                      onMouseLeave={() => setHoveredCat(null)}
-                    />
-                  );
-                })}
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                {displayCat ? (
-                  <>
-                    <span className="text-[9px] text-zinc-400 font-bold uppercase leading-tight max-w-[70px] truncate">{displayCat.label}</span>
-                    <span className="text-sm font-black font-mono text-zinc-900 dark:text-zinc-100 mt-0.5">
-                      S/{displayCat.amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                    </span>
-                    <span className="text-[10px] text-zinc-400 font-bold mt-0.5">{totalForChart > 0 ? ((displayCat.amount / totalForChart) * 100).toFixed(0) : 0}%</span>
-                  </>
+          {expenses.length === 0 ? (
+            <div className="py-16 text-center text-zinc-400">
+              <p className="text-sm font-medium">Aún no hay gastos registrados</p>
+            </div>
+          ) : (
+            <>
+              {/* Gastos hormiga */}
+              <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-[18px]" style={{ background: '#FEF3C7' }}>
+                    🐜
+                  </div>
+                  <div>
+                    <p className="text-[14px] font-medium text-zinc-900 dark:text-zinc-100">Gastos hormiga</p>
+                    <p className="text-[12px] text-zinc-400">Pequeños gastos que se repiten y suman</p>
+                  </div>
+                </div>
+
+                {hormigaItems.length === 0 ? (
+                  <p className="text-[13px] text-zinc-400 py-2">No se detectaron gastos repetidos aún.</p>
                 ) : (
                   <>
-                    <span className="text-[9px] text-zinc-400 font-bold uppercase">Total</span>
-                    <span className="text-sm font-black font-mono text-zinc-900 dark:text-zinc-100 mt-0.5">
-                      S/{totalForChart.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                    </span>
+                    <div className="space-y-0 divide-y divide-zinc-50 dark:divide-zinc-800">
+                      {hormigaItems.map(h => (
+                        <div key={h.title} className="flex items-center gap-2 py-2.5">
+                          <span className="flex-1 text-[13px] text-zinc-600 dark:text-zinc-400 truncate">{h.title}</span>
+                          <span className="text-[11px] text-zinc-400 bg-zinc-100 dark:bg-zinc-800 rounded px-1.5 py-0.5 shrink-0">{h.freq}</span>
+                          <span className="text-[13px] font-medium text-amber-600 dark:text-amber-400 tabular-nums shrink-0">{fmtS(h.yearlyEst)}/año</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-between items-center pt-3 mt-1 border-t border-zinc-100 dark:border-zinc-800">
+                      <span className="text-[12px] text-zinc-400">Total anualizado estimado</span>
+                      <span className="text-[16px] font-semibold text-rose-600 dark:text-rose-400 tabular-nums">
+                        {fmtS(hormigaItems.reduce((s, h) => s + h.yearlyEst, 0))}/año
+                      </span>
+                    </div>
                   </>
                 )}
               </div>
-            </div>
 
-            {/* Legend + breakdown */}
-            <div className="flex-1 w-full space-y-1">
-              {catTotals.map(cat => {
-                const Icon = cat.icon;
-                const pct = totalForChart > 0 ? (cat.amount / totalForChart) * 100 : 0;
-                const isOpen = openCat === cat.key;
-                return (
-                  <div key={cat.key}>
-                    <button
-                      type="button"
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition cursor-pointer text-left ${
-                        hoveredCat === cat.key ? 'bg-zinc-50 dark:bg-zinc-800/50' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/30'
-                      }`}
-                      onMouseEnter={() => setHoveredCat(cat.key as CatKey)}
-                      onMouseLeave={() => setHoveredCat(null)}
-                      onClick={() => setOpenCat(isOpen ? null : cat.key as CatKey)}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                        <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 truncate">{cat.label}</span>
-                        <span className="text-[10px] text-zinc-400">({cat.items.length})</span>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-xs font-black font-mono text-zinc-800 dark:text-zinc-100">
-                          S/{cat.amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                        </span>
-                        <span className="text-[10px] text-zinc-400 w-7 text-right">{pct.toFixed(0)}%</span>
-                        <ChevronRight size={12} className={`text-zinc-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
-                      </div>
-                    </button>
-
-                    {isOpen && (
-                      <div className="ml-5 mb-1 space-y-0.5">
-                        {cat.items.map(item => (
-                          <div key={item.id} className="flex justify-between items-center px-3 py-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/30">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="text-xs text-zinc-600 dark:text-zinc-400 truncate">{item.name}</span>
-                              {item.count && item.count > 1 && (
-                                <span className="text-[9px] text-zinc-400 shrink-0">({item.count} gastos)</span>
-                              )}
-                            </div>
-                            <span className="text-xs font-mono font-bold text-zinc-700 dark:text-zinc-300 shrink-0 ml-2">
-                              S/{item.amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+              {/* Gastos más fuertes */}
+              <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-[18px]" style={{ background: '#EDE9FE' }}>
+                    ⚡
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Ingresos por roommate */}
-      {roommates.length > 0 && (
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl p-4 space-y-3">
-          <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider block">Ingresos por roommate</span>
-          <div className="space-y-2">
-            {roommates.map(r => {
-              const pct = totalIncome > 0 ? (r.income / totalIncome) * 100 : 0;
-              return (
-                <div key={r.id} className="flex items-center gap-3">
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white shrink-0" style={{ backgroundColor: r.color }}>
-                    {r.name.charAt(0).toUpperCase()}
+                  <div>
+                    <p className="text-[14px] font-medium text-zinc-900 dark:text-zinc-100">Gastos más fuertes</p>
+                    <p className="text-[12px] text-zinc-400">Los que más pesan en tu historial</p>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1">
-                      <span className="truncate">{r.name}</span>
-                      <span className="font-mono shrink-0 ml-2">S/{r.income.toLocaleString()}</span>
-                    </div>
-                    <div className="h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: r.color }} />
-                    </div>
-                  </div>
-                  <span className="text-[10px] text-zinc-400 w-8 text-right">{pct.toFixed(0)}%</span>
                 </div>
-              );
-            })}
-          </div>
+                <div className="space-y-3">
+                  {topExpenses.map(e => (
+                    <div key={e.id}>
+                      <div className="flex justify-between items-baseline mb-1">
+                        <span className="text-[13px] text-zinc-600 dark:text-zinc-400 truncate flex-1 mr-2">{e.title}</span>
+                        <span className="text-[13px] font-medium text-zinc-900 dark:text-zinc-100 tabular-nums shrink-0">{fmtS(e.soles)}</span>
+                      </div>
+                      <div className="h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${(e.soles / maxTop) * 100}%`, background: e.color }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Insight */}
+              {topHormiga && (
+                <div className="bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-2xl p-4 flex gap-3">
+                  <Lightbulb size={18} className="text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" aria-hidden="true" />
+                  <div>
+                    <p className="text-[13px] font-medium text-indigo-800 dark:text-indigo-200 mb-1">Tu mayor oportunidad</p>
+                    <p className="text-[13px] text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                      <span className="font-medium text-zinc-800 dark:text-zinc-200">{topHormiga.title}</span> te cuesta aproximadamente{' '}
+                      <span className="font-medium text-zinc-800 dark:text-zinc-200">{fmtS(topHormiga.avgPerMonth)}/mes</span>.
+                      En un año serían{' '}
+                      <span className="font-semibold text-rose-600 dark:text-rose-400">{fmtS(topHormiga.yearlyEst)}</span>.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
-
-
-      {/* Monthly History Section */}
-      {(() => {
-        const monthNames = [
-          "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-          "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-        ];
-
-        const getMonthKey = (dateStr: string) => {
-          const parts = dateStr.split('-');
-          if (parts.length < 2) return null;
-          return `${parts[0]}-${parts[1]}`;
-        };
-
-        const getMonthLabel = (key: string) => {
-          const parts = key.split('-');
-          if (parts.length < 2) return key;
-          const mIdx = parseInt(parts[1], 10) - 1;
-          return `${monthNames[mIdx]} ${parts[0]}`;
-        };
-
-        // Build last 6 months from expense data
-        const monthKeys = Array.from(new Set(expenses.map(e => getMonthKey(e.date)).filter(Boolean) as string[]))
-          .sort((a, b) => b.localeCompare(a))
-          .slice(0, 6);
-
-        if (monthKeys.length === 0) return null;
-
-        const monthData = monthKeys.map(key => {
-          const monthExpenses = expenses.filter(e => getMonthKey(e.date) === key);
-          const total = monthExpenses.reduce((sum, e) => sum + toSoles(e.amount, e.currency, rate), 0);
-
-          // Top category
-          const catTotals: Record<string, number> = {};
-          monthExpenses.forEach(e => {
-            const cat = e.category || 'otros';
-            catTotals[cat] = (catTotals[cat] || 0) + toSoles(e.amount, e.currency, rate);
-          });
-          const topCat = Object.entries(catTotals).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
-
-          return { key, label: getMonthLabel(key), total, count: monthExpenses.length, topCat };
-        });
-
-        return (
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-3xl p-6 shadow-sm">
-            <h3 className="text-base font-black text-zinc-900 dark:text-zinc-50 mb-4 tracking-tight">Historial de Meses</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {monthData.map((m, i) => {
-                const prev = monthData[i + 1];
-                const pctChange = prev && prev.total > 0 ? ((m.total - prev.total) / prev.total) * 100 : null;
-                const topCatLabel = m.topCat ? EXP_CATEGORY_LABELS[m.topCat] || m.topCat : null;
-                return (
-                  <div key={m.key} className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-700 rounded-2xl p-3.5 space-y-1.5">
-                    <div className="text-[10px] font-black uppercase text-zinc-400 tracking-wider">{m.label}</div>
-                    <div className="text-lg font-black font-mono text-zinc-900 dark:text-zinc-100">
-                      S/ {m.total.toLocaleString('es-PE', { maximumFractionDigits: 0 })}
-                    </div>
-                    <div className="text-[10px] text-zinc-500 dark:text-zinc-400">
-                      {m.count} {m.count === 1 ? 'gasto' : 'gastos'}
-                    </div>
-                    {topCatLabel && (
-                      <div className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 truncate">{topCatLabel}</div>
-                    )}
-                    {pctChange !== null && (
-                      <div className={`flex items-center gap-0.5 text-[10px] font-black ${pctChange > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
-                        {pctChange > 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-                        <span>{pctChange > 0 ? '+' : ''}{pctChange.toFixed(1)}% vs anterior</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })()}
-
     </div>
   );
 }

@@ -647,7 +647,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     budget:           { label: apartmentName,    sub: `${roommates.length} roommates` },
     bills:            { label: 'Recurrentes',   sub: `${pendingBillsCount} por pagar` },
     expenses:         { label: 'Gastos',          sub: 'Gastos compartidos' },
-    projected_budget: { label: 'Presupuesto',    sub: 'Proyección mensual' },
+    projected_budget: { label: 'Reportes',       sub: 'Análisis de gastos' },
     shopping:         { label: 'Compras',         sub: `${itemsMissingCount} pendientes` },
     forum:            { label: 'Comunidad',       sub: 'Red Vecinal' },
     directory:        { label: 'Directorio',      sub: 'Servicios de confianza' },
@@ -656,7 +656,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
 
   const navTabs = [
     { id: 'budget',           icon: <Home size={20} />,        label: 'Inicio',      env: 'depa' as const },
-    { id: 'projected_budget', icon: <TrendingUp size={20} />,  label: 'Presupuesto', env: 'depa' as const },
+    { id: 'projected_budget', icon: <TrendingUp size={20} />,  label: 'Reportes',    env: 'depa' as const },
     { id: 'expenses',         icon: <Plus size={24} />,         label: 'Gastos',      env: 'depa' as const, primary: true },
     { id: 'shopping',         icon: <ShoppingCart size={20} />, label: 'Compras',     env: 'depa' as const },
     { id: 'forum',            icon: <Users size={20} />,        label: 'Comunidad',   env: 'comunidad' as const },
