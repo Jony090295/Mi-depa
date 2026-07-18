@@ -799,7 +799,6 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-[14px] font-semibold text-zinc-900 dark:text-zinc-100">{r.name}</p>
-                            <p className="text-[12px] text-zinc-400 mt-0.5">S/ {r.income.toLocaleString()} · {pct.toFixed(0)}% del ingreso total</p>
                           </div>
                           {r.userId ? (
                             <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/30 px-2.5 py-1 rounded-full shrink-0">Activo</span>
@@ -825,21 +824,28 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                           </button>
                         </div>
                         {isEditing && (
-                          <div className="border-t border-zinc-100 dark:border-zinc-800 px-4 py-3 flex gap-2 animate-fadeIn bg-zinc-50 dark:bg-zinc-800/50">
-                            <div className="flex-1 relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-[12px]">S/</span>
-                              <input type="number" inputMode="decimal" defaultValue={r.income}
-                                onBlur={e => {
-                                  handleUpdateRoommates(roommates.map(x => x.id === r.id ? { ...x, income: Number(e.target.value) } : x));
-                                  setEditingRoommateId(null);
-                                }}
-                                autoFocus
-                                className="w-full pl-7 pr-3 h-10 rounded-xl bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-[14px] font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-zinc-200 dark:border-zinc-600" />
+                          <div className="border-t border-zinc-100 dark:border-zinc-800 px-4 py-3 space-y-2 animate-fadeIn bg-zinc-50 dark:bg-zinc-800/50">
+                            <input
+                              type="text"
+                              defaultValue={r.name}
+                              placeholder="Nombre"
+                              autoFocus
+                              onBlur={e => handleUpdateRoommates(roommates.map(x => x.id === r.id ? { ...x, name: e.target.value.trim() || x.name } : x))}
+                              className="w-full px-3 h-10 rounded-xl bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-[14px] font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-zinc-200 dark:border-zinc-600"
+                            />
+                            <div className="flex gap-2">
+                              <div className="flex-1 relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-[12px]">S/</span>
+                                <input type="number" inputMode="decimal" defaultValue={r.income}
+                                  onBlur={e => handleUpdateRoommates(roommates.map(x => x.id === r.id ? { ...x, income: Number(e.target.value) } : x))}
+                                  placeholder="Ingreso mensual"
+                                  className="w-full pl-7 pr-3 h-10 rounded-xl bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-zinc-200 dark:border-zinc-600" />
+                              </div>
+                              <button type="button" onClick={() => setEditingRoommateId(null)}
+                                className="h-10 px-4 rounded-xl bg-indigo-600 text-white text-[13px] font-semibold cursor-pointer">
+                                OK
+                              </button>
                             </div>
-                            <button type="button" onClick={() => setEditingRoommateId(null)}
-                              className="h-10 px-4 rounded-xl bg-indigo-600 text-white text-[13px] font-semibold cursor-pointer">
-                              OK
-                            </button>
                           </div>
                         )}
                       </div>
