@@ -95,7 +95,7 @@ export default function ChatTab({ apartmentId, apartmentName, roommates, current
   const msgRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const pinnedMessages = messages.filter(m => m.isPinned && !m.deletedAt);
+  const pinnedMessages = React.useMemo(() => messages.filter(m => m.isPinned && !m.deletedAt), [messages]);
   const filteredMessages = searchQuery
     ? messages.filter(m => m.text?.toLowerCase().includes(searchQuery.toLowerCase()) && !m.deletedAt)
     : null;
@@ -173,11 +173,8 @@ export default function ChatTab({ apartmentId, apartmentName, roommates, current
     setTimeout(() => scrollToBottom(true), 100);
   }
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+  function handleKeyDown(_e: React.KeyboardEvent) {
+    // Enter always inserts a newline; send only via button
   }
 
   function startEdit(msg: ChatMessage) {

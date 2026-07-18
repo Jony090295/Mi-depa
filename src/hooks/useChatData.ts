@@ -141,6 +141,7 @@ export function useChatData(apartmentId: string | null, currentUserId: string, r
   const [loading, setLoading] = useState(true);
   const [isDemo, setIsDemo] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const isDemoRef = useRef(false);
 
   const load = useCallback(async () => {
     if (!apartmentId) return;
@@ -153,20 +154,20 @@ export function useChatData(apartmentId: string | null, currentUserId: string, r
         .order('created_at', { ascending: true })
         .limit(200);
 
-      if (error) {
-        // Table doesn't exist yet → show demo
+      if (error && (error.code === '42P01' || error.message?.includes('does not exist'))) {
         setMessages(buildDemo(roommateNames));
         setIsDemo(true);
+        isDemoRef.current = true;
+      } else if (error) {
+        setMessages(buildDemo(roommateNames));
+        setIsDemo(true);
+        isDemoRef.current = true;
       } else {
         const rows = data ?? [];
         const mapped = rows.map(r => rowToMessage(r, rows));
-        if (mapped.length === 0) {
-          setMessages(buildDemo(roommateNames));
-          setIsDemo(true);
-        } else {
-          setMessages(mapped);
-          setIsDemo(false);
-        }
+        setMessages(mapped);
+        setIsDemo(false);
+        isDemoRef.current = false;
       }
     } finally {
       setLoading(false);
@@ -182,6 +183,7 @@ export function useChatData(apartmentId: string | null, currentUserId: string, r
       .channel(`chat:${apartmentId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages', filter: `apartment_id=eq.${apartmentId}` },
         (payload) => {
+          if (isDemoRef.current) return; // don't overwrite demo state from realtime
           if (payload.eventType === 'INSERT') {
             setMessages(prev => {
               const row = payload.new;
