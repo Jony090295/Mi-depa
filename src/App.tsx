@@ -1066,10 +1066,10 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
       </main>
 
       <nav
-        className="fixed bottom-0 left-0 right-0 z-50 bg-white/90 dark:bg-zinc-900/92 backdrop-blur-xl border-t border-zinc-200/60 dark:border-zinc-800/60"
+        className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-zinc-900 border-t border-zinc-100 dark:border-zinc-800"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        <div className="flex items-end h-[56px]">
+        <div className="flex items-center h-[60px] px-2">
           {navTabs.map((tab) => {
             const isActive = activeTab === tab.id || (tab.id === 'forum' && activeTab === 'directory');
             const isPrimary = tab.primary;
@@ -1080,30 +1080,26 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                   setEnvironment(tab.env);
                   setActiveTab(tab.id as typeof activeTab);
                 }}
-                className="flex-1 flex flex-col items-center justify-end pb-2 min-h-[56px] active:opacity-70 transition-opacity"
+                className="flex-1 flex flex-col items-center justify-center gap-1 h-full active:opacity-60 transition-opacity"
                 aria-label={tab.label}
               >
                 {isPrimary ? (
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-md -mt-5 transition-all duration-200 ${
-                    isActive ? 'bg-indigo-600 shadow-indigo-500/40 scale-105' : 'bg-indigo-600 shadow-indigo-500/25'
-                  }`}>
+                  <div className="w-14 h-14 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/30 -mt-6">
                     <span className="text-white">{tab.icon}</span>
                   </div>
                 ) : (
-                  <div className={`w-7 h-7 flex items-center justify-center transition-all duration-200 ${
-                    isActive
-                      ? tab.env === 'comunidad' ? 'text-amber-500' : 'text-indigo-600'
-                      : 'text-zinc-400 dark:text-zinc-500'
+                  <div className={`flex items-center justify-center w-6 h-6 transition-colors duration-150 ${
+                    isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-400 dark:text-zinc-500'
                   }`}>
                     {tab.icon}
                   </div>
                 )}
-                <span className={`text-[10px] font-semibold mt-0.5 leading-none transition-colors duration-200 ${
-                  isActive
-                    ? tab.env === 'comunidad'
-                      ? 'text-amber-500'
-                      : isPrimary ? 'text-indigo-500' : 'text-indigo-600 dark:text-indigo-400'
-                    : 'text-zinc-400 dark:text-zinc-500'
+                <span className={`text-[10px] font-medium leading-none transition-colors duration-150 ${
+                  isPrimary
+                    ? 'text-indigo-600 dark:text-indigo-400'
+                    : isActive
+                      ? 'text-indigo-600 dark:text-indigo-400'
+                      : 'text-zinc-400 dark:text-zinc-500'
                 }`}>
                   {tab.label}
                 </span>
