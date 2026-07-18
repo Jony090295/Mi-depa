@@ -12,13 +12,13 @@ import ApartmentSetupScreen from './components/ApartmentSetupScreen';
 // Components
 import ExpensesTab from './components/ExpensesTab';
 import RecurrentBillsTab from './components/RecurrentBillsTab';
-import ShoppingTab from './components/ShoppingTab';
+import ChatTab from './components/ChatTab';
 import CommunityTab from './components/CommunityTab';
 import ProjectedBudget from './components/ProjectedBudget';
 
 // Icons
 import {
-  Home, Split, Clock, ShoppingCart, Users, BellRing, ChevronRight,
+  Home, Split, Clock, MessageCircle, ShoppingCart, Users, BellRing, ChevronRight, Search,
   Moon, Sun, Settings, Check, ArrowRight, Plus, Pencil, Trash2, TrendingUp, Loader, Copy, LogOut, Receipt,
 } from 'lucide-react';
 
@@ -85,7 +85,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     localStorage.setItem('depa_dark_mode', String(darkMode));
   }, [darkMode]);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'budget' | 'expenses' | 'bills' | 'shopping' | 'directory' | 'forum' | 'projected_budget'>('budget');
+  const [activeTab, setActiveTab] = useState<'overview' | 'budget' | 'expenses' | 'bills' | 'chat' | 'directory' | 'forum' | 'projected_budget'>('budget');
   const [environment, setEnvironment] = useState<'depa' | 'comunidad'>('depa');
   const [globalAlert, setGlobalAlert] = useState<string | null>(null);
   const [prefilledBillId, setPrefilledBillId] = useState<string>('');
@@ -133,7 +133,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
   }, [variableReminders]);
 
   useEffect(() => {
-    if (environment === 'depa' && !['projected_budget', 'budget', 'expenses', 'shopping'].includes(activeTab)) {
+    if (environment === 'depa' && !['projected_budget', 'budget', 'expenses', 'chat'].includes(activeTab)) {
       setActiveTab('budget');
     } else if (environment === 'comunidad' && !['directory', 'forum'].includes(activeTab)) {
       setActiveTab('forum');
@@ -640,6 +640,13 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     return sum + b.amount * rate;
   }, 0);
   const itemsMissingCount  = shoppingItems.filter(i => !i.checked).length;
+  const subtitle = (() => {
+    const names = roommates.map(r => r.name);
+    if (names.length === 0) return 'Chat del depa';
+    if (names.length === 1) return names[0];
+    if (names.length === 2) return `${names[0]} y ${names[1]}`;
+    return `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}`;
+  })();
   const homeSettlements    = calculateSettlements(expenses, roommates, settlementHistory);
   const pendingDebtsCount  = homeSettlements.length;
 
@@ -648,7 +655,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     bills:            { label: 'Recurrentes',   sub: `${pendingBillsCount} por pagar` },
     expenses:         { label: 'Gastos',          sub: 'Gastos compartidos' },
     projected_budget: { label: 'Reportes',       sub: 'Análisis de gastos' },
-    shopping:         { label: 'Compras',         sub: `${itemsMissingCount} pendientes` },
+    chat:             { label: 'Chat',             sub: subtitle },
     forum:            { label: 'Comunidad',       sub: 'Red Vecinal' },
     directory:        { label: 'Directorio',      sub: 'Servicios de confianza' },
   };
@@ -658,7 +665,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     { id: 'budget',           icon: <Home size={20} />,        label: 'Inicio',      env: 'depa' as const },
     { id: 'projected_budget', icon: <TrendingUp size={20} />,  label: 'Reportes',    env: 'depa' as const },
     { id: 'expenses',         icon: <Receipt size={22} />,      label: 'Gastos',      env: 'depa' as const, primary: true },
-    { id: 'shopping',         icon: <ShoppingCart size={20} />, label: 'Compras',     env: 'depa' as const },
+    { id: 'chat',             icon: <MessageCircle size={20} />, label: 'Chat',       env: 'depa' as const },
     { id: 'forum',            icon: <Users size={20} />,        label: 'Comunidad',   env: 'comunidad' as const },
   ];
 
@@ -695,6 +702,18 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
             </div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
+            {activeTab === 'chat' && (
+              <button
+                onClick={() => {
+                  // Tell ChatTab to open search — handled via a simple global event
+                  window.dispatchEvent(new CustomEvent('chat:toggleSearch'));
+                }}
+                className="w-10 h-10 flex items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 active:bg-zinc-100 dark:active:bg-zinc-800 transition-colors"
+                aria-label="Buscar"
+              >
+                <Search size={18} />
+              </button>
+            )}
               <button
               onClick={() => setDarkMode(!darkMode)}
               className="w-10 h-10 flex items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 active:bg-zinc-100 dark:active:bg-zinc-800 transition-colors"
@@ -713,7 +732,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
         </div>
       </header>
 
-      <main className="flex-1 w-full px-4 pt-5 pb-nav animate-slide-up">
+      <main className={`flex-1 w-full animate-slide-up ${activeTab === 'chat' ? 'flex flex-col overflow-hidden' : 'px-4 pt-5 pb-nav'}`}>
 
         {activeTab === 'projected_budget' && (
           <ProjectedBudget bills={bills} roommates={roommates} expenses={expenses} rentExchangeRate={rentExchangeRate} />
@@ -1041,15 +1060,12 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
           />
         )}
 
-        {activeTab === 'shopping' && (
-          <ShoppingTab
-            items={shoppingItems}
-            onAddItem={handleAddShoppingItem}
-            onToggleItem={handleToggleShoppingItem}
-            onRemoveItem={handleRemoveShoppingItem}
-            onUpdateItem={handleUpdateShoppingItem}
-            onClearList={handleClearShoppingList}
-            onChatResponse={() => {}}
+        {activeTab === 'chat' && (
+          <ChatTab
+            apartmentId={data.apartmentId}
+            apartmentName={apartmentName}
+            roommates={roommates}
+            currentUserId={user.id}
             currentUserName={roommates.find(r => r.userId === user.id)?.name ?? 'Yo'}
           />
         )}

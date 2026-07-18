@@ -1,6 +1,14 @@
-import React, { useState, useRef } from 'react';
-import { ShoppingItem } from '../types';
-import { Plus, Check, Trash2, Mic, MicOff, Pencil, X } from 'lucide-react';
+import React, { useState, useRef, useCallback } from 'react';
+import {
+  Plus, Check, Trash2, X, ChevronRight, ChevronLeft,
+  ShoppingCart, Star, Clock, RotateCcw, Pencil, List,
+  PackagePlus, CheckCircle2, Circle, ArrowRight,
+} from 'lucide-react';
+import type { ShoppingItem, UsualList, UsualListItem, ShoppingTrip, ShoppingTripGroup, ShoppingTripItem } from '../types';
+import { useShoppingStore } from '../hooks/useShoppingStore';
+import { parseShoppingText, fmtQty } from '../utils/shoppingParser';
+
+// ── Props (backward-compatible with existing Supabase shopping_items) ────────
 
 interface ShoppingTabProps {
   items: ShoppingItem[];
@@ -13,397 +21,882 @@ interface ShoppingTabProps {
   currentUserName?: string;
 }
 
-const SpeechRecognition =
-  (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-const speechSupported = !!SpeechRecognition;
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-interface ShoppingAction {
-  type: 'add' | 'check' | 'remove' | 'clear';
-  name: string;
-  quantity?: string;
+const LIST_COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#84CC16'];
+
+function colorDot(color: string, size = 10) {
+  return <span style={{ width: size, height: size, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }} />;
 }
 
-function cap(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
-
-const WORD_NUMBERS: Record<string, number> = {
-  un: 1, una: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5,
-  seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, media: 0.5, medio: 0.5,
-};
-
-const UNITS = 'kilo[s]?|kg|gramo[s]?|gr?|litro[s]?|lt?|unidad(?:es)?|caja[s]?|bolsa[s]?|paquete[s]?|rollo[s]?|mano[s]?|docena[s]?|tarro[s]?|frasco[s]?|lata[s]?|barra[s]?';
-const FILLER_WORDS = /^(un|una|el|la|los|las|algo de|un poco de|unas|unos)\s+/i;
-
-function extractSingleItem(raw: string): { name: string; quantity: string } {
-  const s = raw.trim();
-  const digitMatch = s.match(new RegExp(`^(\\d+[\\d.,]*\\s*(?:${UNITS})?)\\s*(?:de\\s+)?`, 'i'));
-  if (digitMatch) {
-    const qty = digitMatch[1].trim();
-    const name = s.slice(digitMatch[0].length).replace(FILLER_WORDS, '').trim();
-    return { quantity: qty || '1', name: cap(name) };
-  }
-  const wordNumMatch = s.match(new RegExp(`^(${Object.keys(WORD_NUMBERS).join('|')})\\s+(${UNITS})?\\s*(?:de\\s+)?(.+)`, 'i'));
-  if (wordNumMatch) {
-    const num = WORD_NUMBERS[wordNumMatch[1].toLowerCase()];
-    const unit = wordNumMatch[2] ? wordNumMatch[2].trim() : 'u';
-    const name = wordNumMatch[3].replace(FILLER_WORDS, '').trim();
-    return { quantity: `${num} ${unit}`, name: cap(name) };
-  }
-  const name = s.replace(FILLER_WORDS, '').trim();
-  return { quantity: '1 u', name: cap(name) };
+function fmtDate(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-PE', { day: 'numeric', month: 'short' });
 }
 
-const INTENT_CHECK = /^(ya compré|ya compre|compré|compre|tachar|marcar|conseguí|consegui|ya tenemos|ya tiene)/i;
-const INTENT_REMOVE = /^(quitar|eliminar|borrar|quita|elimina|borra|sacar|saca|ya no necesitamos|ya no falta)/i;
-const INTENT_CLEAR = /^(limpiar|borrar todo|vaciar|limpiar lista)/i;
-const INTENT_ADD = /^(falta|faltan|agrega[r]?|añadi[r]?|agrégame|necesito|compra[r]?|pon(?:er)?|añade|hay que comprar|me falta|nos falta|consigue|trae[r]?|trae)/i;
-const FILLER_SENTENCE = /^(podría ser|puede ser|también podría ser|y también|creo que falta|me parece que falta|para esta semana|para el desayuno|para la semana|para mañana|ponle|ponme|agrega también|también agrega|quizás|capaz)\s*/i;
+type Screen =
+  | { type: 'hub' }
+  | { type: 'falta' }
+  | { type: 'usual-list'; listId: string }
+  | { type: 'prepare-trip' }
+  | { type: 'trip-build' }
+  | { type: 'trip-shop' }
+  | { type: 'history' };
 
-function parseFallback(text: string): ShoppingAction[] {
-  const lower = text.toLowerCase().trim();
-  if (INTENT_CLEAR.test(lower)) return [{ type: 'clear', name: '' }];
-  if (INTENT_CHECK.test(lower)) {
-    const rest = lower.replace(INTENT_CHECK, '').trim();
-    return splitItems(rest).map(s => ({ type: 'check' as const, name: cap(s) }));
-  }
-  if (INTENT_REMOVE.test(lower)) {
-    const rest = lower.replace(INTENT_REMOVE, '').trim();
-    return splitItems(rest).map(s => ({ type: 'remove' as const, name: cap(s) }));
-  }
-  let raw = lower.replace(FILLER_SENTENCE, '').replace(INTENT_ADD, '').trim();
-  return splitItems(raw).map(part => {
-    const { name, quantity } = extractSingleItem(part);
-    return { type: 'add' as const, name, quantity };
-  });
-}
-
-function splitItems(text: string): string[] {
-  return text
-    .split(/\s*,\s*|\s+y\s+|\s+e\s+/)
-    .map(s => s.trim())
-    .filter(s => s.length > 1);
-}
-
-const ROOMMATE_COLORS: Record<string, string> = {};
-const COLOR_PALETTE = ['#6366f1','#ec4899','#10b981','#f59e0b','#3b82f6','#8b5cf6','#ef4444'];
-let colorIdx = 0;
-function getRoommateColor(name: string) {
-  if (!ROOMMATE_COLORS[name]) {
-    ROOMMATE_COLORS[name] = COLOR_PALETTE[colorIdx++ % COLOR_PALETTE.length];
-  }
-  return ROOMMATE_COLORS[name];
-}
-
-function parseQty(q: string): { num: number; unit: string } {
-  const m = q.trim().match(/^([\d.,]+)\s*(.*)/);
-  if (m) return { num: parseFloat(m[1].replace(',', '.')), unit: m[2].trim() };
-  return { num: 1, unit: q.trim() };
-}
+// ── Main component ────────────────────────────────────────────────────────────
 
 export default function ShoppingTab({
   items,
   onAddItem,
   onToggleItem,
   onRemoveItem,
-  onUpdateItem,
   onClearList,
   currentUserName = 'Yo',
 }: ShoppingTabProps) {
-  const [inputValue, setInputValue] = useState('');
-  const [showCompleted, setShowCompleted] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [feedback, setFeedback] = useState('');
-  const [feedbackError, setFeedbackError] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editQty, setEditQty] = useState('');
-  const recognitionRef = useRef<any>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const store = useShoppingStore();
+  const [screen, setScreen] = useState<Screen>({ type: 'hub' });
+  const [showAddFalta, setShowAddFalta] = useState(false);
+  const [showNewList, setShowNewList] = useState(false);
 
-  const startEdit = (item: ShoppingItem) => {
-    setEditingId(item.id);
-    setEditName(item.name);
-    setEditQty(item.quantity);
-  };
+  function goBack() { setScreen({ type: 'hub' }); }
 
-  const saveEdit = (id: string) => {
-    if (editName.trim()) onUpdateItem(id, { name: editName.trim(), quantity: editQty.trim() || '1 u' });
-    setEditingId(null);
-  };
+  // ── Hub ─────────────────────────────────────────────────────────────────────
 
-  const stepQty = (item: ShoppingItem, delta: number) => {
-    const { num, unit } = parseQty(item.quantity);
-    const next = Math.max(1, Math.round((num + delta) * 10) / 10);
-    const newQty = unit ? `${next} ${unit}` : `${next}`;
-    onUpdateItem(item.id, { quantity: newQty });
-  };
-
-  const showFeedback = (msg: string, isError = false) => {
-    setFeedback(msg);
-    setFeedbackError(isError);
-    setTimeout(() => setFeedback(''), 3000);
-  };
-
-  const applyActions = (actions: ShoppingAction[]) => {
-    const added: string[] = [], checked: string[] = [], removed: string[] = [];
-    for (const a of actions) {
-      if (a.type === 'clear') { onClearList(); showFeedback('Lista limpiada.'); return; }
-      if (!a.name) continue;
-      if (a.type === 'add') {
-        onAddItem({ name: a.name, quantity: a.quantity || '1 u', checked: false, addedBy: currentUserName });
-        added.push(a.name);
-      } else if (a.type === 'check') {
-        const nl = a.name.toLowerCase();
-        items.filter(i => i.name.toLowerCase().includes(nl) || nl.includes(i.name.toLowerCase()))
-          .forEach(i => { if (!i.checked) onToggleItem(i.id); checked.push(a.name); });
-      } else if (a.type === 'remove') {
-        const nl = a.name.toLowerCase();
-        items.filter(i => i.name.toLowerCase().includes(nl) || nl.includes(i.name.toLowerCase()))
-          .forEach(i => { onRemoveItem(i.id); removed.push(a.name); });
-      }
-    }
-    const parts = [
-      added.length && `Agregado: ${added.join(', ')}`,
-      checked.length && `Marcado: ${checked.join(', ')}`,
-      removed.length && `Eliminado: ${removed.join(', ')}`,
-    ].filter(Boolean);
-    if (parts.length) showFeedback(parts.join(' · '));
-    else showFeedback('No entendí. Inténtalo de nuevo.', true);
-  };
-
-  const applyCommand = async (text: string) => {
-    try {
-      const res = await fetch('/api/shopping/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, previousItems: items }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.actions?.length) { applyActions(data.actions); return; }
-      }
-    } catch { /* offline */ }
-    applyActions(parseFallback(text));
-  };
-
-  const toggleMic = () => {
-    if (!speechSupported) { showFeedback('Tu navegador no soporta voz. Prueba Chrome.', true); return; }
-    if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return; }
-    const r = new SpeechRecognition();
-    r.lang = 'es-PE';
-    r.interimResults = false;
-    r.maxAlternatives = 1;
-    r.onstart = () => setIsListening(true);
-    r.onend = () => setIsListening(false);
-    r.onerror = (e: any) => {
-      setIsListening(false);
-      if (e.error === 'no-speech') showFeedback('No se detectó voz.', true);
-      else if (e.error === 'not-allowed') showFeedback('Permiso de micrófono denegado.', true);
-      else showFeedback(`Error: ${e.error}`, true);
-    };
-    r.onresult = (e: any) => applyCommand(e.results[0][0].transcript);
-    recognitionRef.current = r;
-    r.start();
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const val = inputValue.trim();
-    if (!val) return;
-    const { name, quantity } = extractSingleItem(val);
-    onAddItem({ name, quantity, checked: false, addedBy: currentUserName });
-    setInputValue('');
-    inputRef.current?.focus();
-  };
-
-  const pending = items.filter(i => !i.checked);
-  const completed = items.filter(i => i.checked);
-
-  return (
-    <div className="space-y-3" style={{ paddingBottom: 'calc(80px + env(safe-area-inset-bottom))' }}>
-
-      {/* ── Toast feedback ── */}
-      {feedback && (
-        <div className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[12px] font-medium ${feedbackError ? 'bg-rose-50 dark:bg-rose-950/20 text-rose-600 border border-rose-100 dark:border-rose-900/30' : 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-900/30'}`}>
-          {feedbackError ? '✕' : '✓'} {feedback}
+  if (screen.type === 'hub') {
+    const pending = items.filter(i => !i.checked);
+    const hasTrip = !!store.activeTrip;
+    return (
+      <div className="flex flex-col h-full overflow-y-auto bg-zinc-50">
+        <div className="px-4 pt-5 pb-2">
+          <h1 className="text-xl font-bold text-zinc-900">Compras</h1>
         </div>
-      )}
 
-      {/* ── Lista pendiente ── */}
-      {pending.length === 0 && completed.length === 0 ? (
-        <div className="py-16 flex flex-col items-center gap-2 text-zinc-400 dark:text-zinc-600">
-          <div className="w-12 h-12 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mb-1">
-            <span className="text-2xl">🛒</span>
-          </div>
-          <p className="text-[14px] font-semibold">Lista vacía</p>
-          <p className="text-[12px]">Escribe abajo o usa el micrófono</p>
-        </div>
-      ) : (
-        <>
-          {pending.length === 0 ? (
-            <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-100 dark:border-emerald-900/30">
-              <Check size={14} className="text-emerald-500 shrink-0" />
-              <p className="text-[13px] font-semibold text-emerald-700 dark:text-emerald-300">¡Todo comprado!</p>
-            </div>
-          ) : (
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 overflow-hidden">
-              {pending.map((item, i) => (
-                <div key={item.id}
-                  className={`px-4 py-3 ${i < pending.length - 1 ? 'border-b border-zinc-50 dark:border-zinc-800/60' : ''}`}>
-                  {editingId === item.id ? (
-                    <div className="flex flex-col gap-2">
-                      <input
-                        autoFocus
-                        value={editName}
-                        onChange={e => setEditName(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') saveEdit(item.id); if (e.key === 'Escape') setEditingId(null); }}
-                        className="w-full h-9 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[14px] focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        placeholder="Nombre"
-                      />
-                      <div className="flex items-center gap-2">
-                        <input
-                          value={editQty}
-                          onChange={e => setEditQty(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') saveEdit(item.id); if (e.key === 'Escape') setEditingId(null); }}
-                          className="w-24 h-9 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                          placeholder="Cantidad"
-                        />
-                        <button type="button" onClick={() => saveEdit(item.id)}
-                          className="flex-1 h-9 rounded-xl bg-emerald-600 text-white text-[13px] font-semibold cursor-pointer">
-                          Guardar
-                        </button>
-                        <button type="button" onClick={() => setEditingId(null)}
-                          className="w-9 h-9 flex items-center justify-center text-zinc-400 hover:text-zinc-600 cursor-pointer">
-                          <X size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex gap-3">
-                      <button type="button" onClick={() => onToggleItem(item.id)}
-                        className="mt-0.5 w-6 h-6 rounded-full border-2 border-zinc-300 dark:border-zinc-600 hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 flex items-center justify-center transition shrink-0 cursor-pointer" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[14px] font-medium text-zinc-900 dark:text-zinc-100">{item.name}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          {/* Quantity stepper */}
-                          <div className="flex items-center gap-1">
-                            <button type="button" onClick={() => stepQty(item, -1)}
-                              className="w-6 h-6 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 flex items-center justify-center text-[14px] font-bold hover:bg-zinc-200 dark:hover:bg-zinc-700 transition cursor-pointer leading-none">
-                              −
-                            </button>
-                            <span className="min-w-[2.5rem] text-center text-[12px] font-medium text-zinc-500 dark:text-zinc-400">{item.quantity}</span>
-                            <button type="button" onClick={() => stepQty(item, 1)}
-                              className="w-6 h-6 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 flex items-center justify-center text-[14px] font-bold hover:bg-zinc-200 dark:hover:bg-zinc-700 transition cursor-pointer leading-none">
-                              +
-                            </button>
-                          </div>
-                          {item.addedBy && item.addedBy !== 'Yo' && (
-                            <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
-                              style={{ backgroundColor: getRoommateColor(item.addedBy) }}
-                              title={item.addedBy}>
-                              {item.addedBy.charAt(0)}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-0.5 shrink-0">
-                        <button type="button" onClick={() => startEdit(item)}
-                          className="w-8 h-8 flex items-center justify-center text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 transition cursor-pointer">
-                          <Pencil size={13} />
-                        </button>
-                        <button type="button" onClick={() => onRemoveItem(item.id)}
-                          className="w-8 h-8 flex items-center justify-center text-zinc-300 dark:text-zinc-600 hover:text-rose-500 transition cursor-pointer">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+        <div className="px-4 flex flex-col gap-3 pb-24">
+          {/* Active trip banner */}
+          {hasTrip && (
+            <button
+              onClick={() => setScreen({ type: 'trip-shop' })}
+              className="rounded-2xl p-4 flex items-center gap-3 text-white"
+              style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)' }}
+            >
+              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                <ShoppingCart size={20} />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-xs font-medium opacity-80">Compra activa</p>
+                <p className="font-semibold">{store.activeTrip!.name}</p>
+                <p className="text-xs opacity-70">
+                  {store.activeTrip!.groups.reduce((a, g) => a + g.items.filter(i => i.status === 'pending').length, 0)} productos pendientes
+                </p>
+              </div>
+              <ArrowRight size={18} />
+            </button>
           )}
 
-          {/* ── Comprados ── */}
-          {completed.length > 0 && (
-            <div className="rounded-2xl border border-zinc-100 dark:border-zinc-800 overflow-hidden bg-white dark:bg-zinc-900">
-              <div role="button" onClick={() => setShowCompleted(o => !o)}
-                className="w-full flex items-center justify-between px-4 py-3 cursor-pointer active:bg-zinc-50 dark:active:bg-zinc-800 transition select-none">
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
-                    <Check size={11} className="text-white stroke-[3]" />
-                  </div>
-                  <span className="text-[13px] font-semibold text-zinc-500 dark:text-zinc-400">Comprados · {completed.length}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  {showCompleted && (
-                    <button type="button" onClick={e => { e.stopPropagation(); onClearList(); }}
-                      className="text-[11px] font-semibold text-rose-400 hover:text-rose-600 transition cursor-pointer">
-                      Limpiar
-                    </button>
-                  )}
-                  <span className="text-[11px] text-zinc-400">{showCompleted ? '▲' : '▼'}</span>
-                </div>
+          {/* Falta comprar */}
+          <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+            <div className="flex items-center justify-between px-4 pt-4 pb-3">
+              <div>
+                <h2 className="font-semibold text-zinc-900 text-[15px]">Falta comprar</h2>
+                <p className="text-xs text-zinc-400 mt-0.5">{pending.length} producto{pending.length !== 1 ? 's' : ''}</p>
               </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowAddFalta(true)}
+                  className="w-8 h-8 rounded-full flex items-center justify-center"
+                  style={{ background: '#F3F4F6' }}
+                >
+                  <Plus size={16} className="text-zinc-600" />
+                </button>
+                {pending.length > 0 && (
+                  <button
+                    onClick={() => setScreen({ type: 'falta' })}
+                    className="w-8 h-8 rounded-full flex items-center justify-center"
+                    style={{ background: '#F3F4F6' }}
+                  >
+                    <ChevronRight size={16} className="text-zinc-600" />
+                  </button>
+                )}
+              </div>
+            </div>
 
-              {showCompleted && (
-                <div className="border-t border-zinc-50 dark:border-zinc-800/60">
-                  {completed.map((item, i) => (
-                    <div key={item.id}
-                      className={`flex items-center gap-3 px-4 py-3 opacity-50 ${i < completed.length - 1 ? 'border-b border-zinc-50 dark:border-zinc-800/60' : ''}`}>
-                      <button type="button" onClick={() => onToggleItem(item.id)}
-                        className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shrink-0 cursor-pointer">
-                        <Check size={11} className="text-white stroke-[3]" />
-                      </button>
-                      <p className="flex-1 text-[14px] line-through text-zinc-400 truncate">{item.name}</p>
-                      <button type="button" onClick={() => onRemoveItem(item.id)}
-                        className="w-7 h-7 flex items-center justify-center text-zinc-300 hover:text-rose-500 transition shrink-0 cursor-pointer">
-                        <Trash2 size={14} />
-                      </button>
+            {pending.length === 0 ? (
+              <div className="px-4 pb-4 text-sm text-zinc-400">Todo en orden 🎉</div>
+            ) : (
+              <div className="px-4 pb-4 flex flex-col gap-1.5">
+                {pending.slice(0, 4).map(item => (
+                  <div key={item.id} className="flex items-center gap-2">
+                    <Circle size={14} className="text-zinc-300 shrink-0" />
+                    <span className="text-[13px] text-zinc-700">{item.name}</span>
+                    {item.quantity && <span className="text-[11px] text-zinc-400">{item.quantity}</span>}
+                  </div>
+                ))}
+                {pending.length > 4 && (
+                  <button onClick={() => setScreen({ type: 'falta' })} className="text-xs text-violet-500 font-medium mt-1 text-left">
+                    +{pending.length - 4} más
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Listas habituales */}
+          <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+            <div className="flex items-center justify-between px-4 pt-4 pb-3">
+              <h2 className="font-semibold text-zinc-900 text-[15px]">Listas habituales</h2>
+              <button
+                onClick={() => setShowNewList(true)}
+                className="w-8 h-8 rounded-full flex items-center justify-center"
+                style={{ background: '#F3F4F6' }}
+              >
+                <Plus size={16} className="text-zinc-600" />
+              </button>
+            </div>
+            <div className="flex flex-col divide-y divide-zinc-50">
+              {store.usualLists.map(list => (
+                <button
+                  key={list.id}
+                  onClick={() => setScreen({ type: 'usual-list', listId: list.id })}
+                  className="flex items-center gap-3 px-4 py-3 text-left active:bg-zinc-50"
+                >
+                  {colorDot(list.color, 10)}
+                  <span className="flex-1 text-[14px] text-zinc-800 font-medium">{list.name}</span>
+                  <span className="text-xs text-zinc-400 mr-1">{list.items.length} items</span>
+                  <ChevronRight size={14} className="text-zinc-300" />
+                </button>
+              ))}
+              {store.usualLists.length === 0 && (
+                <p className="px-4 pb-4 text-sm text-zinc-400">Sin listas. Crea una para empezar.</p>
+              )}
+            </div>
+          </div>
+
+          {/* Nueva compra */}
+          <button
+            onClick={() => {
+              if (store.activeTrip) {
+                setScreen({ type: 'trip-shop' });
+              } else {
+                setScreen({ type: 'prepare-trip' });
+              }
+            }}
+            className="rounded-2xl p-4 flex items-center gap-3 bg-violet-600 text-white active:bg-violet-700"
+          >
+            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+              <ShoppingCart size={20} />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-semibold">{store.activeTrip ? 'Retomar compra activa' : 'Preparar nueva compra'}</p>
+              <p className="text-xs opacity-70">Arma tu lista y ve al mercado</p>
+            </div>
+            <ArrowRight size={18} />
+          </button>
+
+          {/* Historial */}
+          {store.tripHistory.length > 0 && (
+            <button
+              onClick={() => setScreen({ type: 'history' })}
+              className="rounded-2xl p-4 flex items-center gap-3 bg-white"
+              style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
+            >
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: '#F3F4F6' }}>
+                <Clock size={20} className="text-zinc-500" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-semibold text-zinc-800 text-[14px]">Historial de compras</p>
+                <p className="text-xs text-zinc-400">{store.tripHistory.length} compra{store.tripHistory.length !== 1 ? 's' : ''} realizadas</p>
+              </div>
+              <ChevronRight size={14} className="text-zinc-300" />
+            </button>
+          )}
+        </div>
+
+        {/* Add falta bottom sheet */}
+        {showAddFalta && (
+          <AddFaltaSheet
+            onClose={() => setShowAddFalta(false)}
+            onAdd={(parsed) => {
+              parsed.forEach(p => {
+                onAddItem({
+                  name: p.name,
+                  quantity: fmtQty(p.quantity, p.unit),
+                  checked: false,
+                  addedBy: currentUserName,
+                });
+              });
+              setShowAddFalta(false);
+            }}
+          />
+        )}
+
+        {/* New usual list sheet */}
+        {showNewList && (
+          <NewListSheet
+            onClose={() => setShowNewList(false)}
+            onCreate={(name) => {
+              const list = store.addUsualList(name);
+              setShowNewList(false);
+              setScreen({ type: 'usual-list', listId: list.id });
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // ── Falta comprar detail ─────────────────────────────────────────────────────
+
+  if (screen.type === 'falta') {
+    const pending = items.filter(i => !i.checked);
+    const purchased = items.filter(i => i.checked);
+    return (
+      <div className="flex flex-col h-full overflow-y-auto bg-zinc-50">
+        <NavBar title="Falta comprar" onBack={goBack}>
+          <button onClick={() => setShowAddFalta(true)} className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center">
+            <Plus size={16} className="text-zinc-600" />
+          </button>
+          {purchased.length > 0 && (
+            <button
+              onClick={() => { if (confirm('¿Eliminar los ya comprados?')) onClearList(); }}
+              className="text-xs text-red-400 font-medium px-2"
+            >
+              Limpiar
+            </button>
+          )}
+        </NavBar>
+
+        <div className="px-4 flex flex-col gap-2 pb-24">
+          {pending.length === 0 && purchased.length === 0 && (
+            <p className="text-sm text-zinc-400 text-center mt-8">Lista vacía</p>
+          )}
+          {pending.map(item => (
+            <FaltaItem
+              key={item.id}
+              item={item}
+              onToggle={() => onToggleItem(item.id)}
+              onRemove={() => onRemoveItem(item.id)}
+            />
+          ))}
+          {purchased.length > 0 && (
+            <>
+              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mt-2 mb-1 px-1">Ya comprado</p>
+              {purchased.map(item => (
+                <FaltaItem
+                  key={item.id}
+                  item={item}
+                  onToggle={() => onToggleItem(item.id)}
+                  onRemove={() => onRemoveItem(item.id)}
+                  dimmed
+                />
+              ))}
+            </>
+          )}
+        </div>
+
+        {showAddFalta && (
+          <AddFaltaSheet
+            onClose={() => setShowAddFalta(false)}
+            onAdd={(parsed) => {
+              parsed.forEach(p => {
+                onAddItem({ name: p.name, quantity: fmtQty(p.quantity, p.unit), checked: false, addedBy: currentUserName });
+              });
+              setShowAddFalta(false);
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // ── Usual list detail ────────────────────────────────────────────────────────
+
+  if (screen.type === 'usual-list') {
+    const list = store.usualLists.find(l => l.id === screen.listId);
+    if (!list) { setScreen({ type: 'hub' }); return null; }
+    return (
+      <UsualListScreen
+        list={list}
+        onBack={goBack}
+        onAddItems={(items) => store.addUsualListItems(list.id, items)}
+        onDeleteItem={(itemId) => store.deleteUsualListItem(list.id, itemId)}
+        onDeleteList={() => { store.deleteUsualList(list.id); goBack(); }}
+        onRenameList={(name) => store.updateUsualList(list.id, { name })}
+      />
+    );
+  }
+
+  // ── Prepare trip ─────────────────────────────────────────────────────────────
+
+  if (screen.type === 'prepare-trip') {
+    return (
+      <PrepareTripScreen
+        usualLists={store.usualLists}
+        faltaItems={items.filter(i => !i.checked)}
+        onBack={goBack}
+        onCreate={(name, groups) => {
+          const trip = store.createTrip(name);
+          let current = trip;
+          groups.forEach(({ groupName, color, items: groupItems }) => {
+            const g: ShoppingTripGroup = {
+              id: crypto.randomUUID(),
+              name: groupName,
+              color,
+              position: current.groups.length,
+              items: groupItems.map((item, i) => ({ ...item, id: crypto.randomUUID(), position: i })),
+            };
+            current = { ...current, groups: [...current.groups, g] };
+          });
+          store.updateTrip(current);
+          setScreen({ type: 'trip-shop' });
+        }}
+      />
+    );
+  }
+
+  // ── Trip shop ────────────────────────────────────────────────────────────────
+
+  if (screen.type === 'trip-shop') {
+    if (!store.activeTrip) { setScreen({ type: 'hub' }); return null; }
+    return (
+      <TripShopScreen
+        trip={store.activeTrip}
+        onToggleItem={(gid, iid) => store.toggleTripItem(gid, iid)}
+        onComplete={() => { store.completeTrip(); setScreen({ type: 'hub' }); }}
+        onCancel={() => { if (confirm('¿Abandonar esta compra?')) { store.cancelTrip(); setScreen({ type: 'hub' }); } }}
+        onBack={goBack}
+      />
+    );
+  }
+
+  // ── History ──────────────────────────────────────────────────────────────────
+
+  if (screen.type === 'history') {
+    return (
+      <HistoryScreen
+        history={store.tripHistory}
+        onBack={goBack}
+        onRepeat={(trip) => { store.repeatTrip(trip); setScreen({ type: 'trip-shop' }); }}
+      />
+    );
+  }
+
+  return null;
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function NavBar({ title, onBack, children }: { title: string; onBack: () => void; children?: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 bg-zinc-50 sticky top-0 z-10">
+      <button onClick={onBack} className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center shrink-0">
+        <ChevronLeft size={18} className="text-zinc-600" />
+      </button>
+      <h2 className="flex-1 font-semibold text-zinc-900 text-[15px]">{title}</h2>
+      {children}
+    </div>
+  );
+}
+
+function FaltaItem({ item, onToggle, onRemove, dimmed = false }: {
+  key?: string; item: ShoppingItem; onToggle: () => void; onRemove: () => void; dimmed?: boolean;
+}) {
+  return (
+    <div className={`flex items-center gap-3 bg-white rounded-2xl px-4 py-3 ${dimmed ? 'opacity-50' : ''}`}
+      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+      <button onClick={onToggle} className="shrink-0">
+        {item.checked
+          ? <CheckCircle2 size={20} className="text-green-500" />
+          : <Circle size={20} className="text-zinc-300" />}
+      </button>
+      <span className={`flex-1 text-[14px] ${item.checked ? 'line-through text-zinc-400' : 'text-zinc-800'}`}>{item.name}</span>
+      {item.quantity && <span className="text-xs text-zinc-400">{item.quantity}</span>}
+      <button onClick={onRemove} className="w-6 h-6 flex items-center justify-center">
+        <X size={14} className="text-zinc-300" />
+      </button>
+    </div>
+  );
+}
+
+function AddFaltaSheet({ onClose, onAdd }: { onClose: () => void; onAdd: (items: ReturnType<typeof parseShoppingText>) => void }) {
+  const [text, setText] = useState('');
+  const parsed = parseShoppingText(text);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex flex-col justify-end">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white rounded-t-3xl px-4 pt-4 pb-8 flex flex-col gap-4 max-h-[70dvh]">
+        <div className="w-10 h-1 rounded-full bg-zinc-200 mx-auto mb-1" />
+        <h3 className="font-semibold text-zinc-900">Agregar a falta comprar</h3>
+        <textarea
+          autoFocus
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder={"Tomate 1 kg\n2 lechugas\nYogurt griego\nLeche 2 litros"}
+          rows={5}
+          className="w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm text-zinc-800 resize-none focus:outline-none focus:border-violet-400"
+        />
+        {parsed.length > 0 && (
+          <div className="flex flex-col gap-1 bg-zinc-50 rounded-2xl px-3 py-3">
+            <p className="text-xs font-semibold text-zinc-400 mb-1">{parsed.length} producto{parsed.length !== 1 ? 's' : ''} detectado{parsed.length !== 1 ? 's' : ''}</p>
+            {parsed.map((p, i) => (
+              <div key={i} className="flex items-center gap-2 text-[13px] text-zinc-700">
+                <Check size={12} className="text-green-500 shrink-0" />
+                <span>{p.name}</span>
+                {(p.quantity || p.unit) && <span className="text-zinc-400">{fmtQty(p.quantity, p.unit)}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+        <button
+          disabled={parsed.length === 0}
+          onClick={() => onAdd(parsed)}
+          className="w-full h-12 rounded-2xl text-sm font-semibold text-white disabled:opacity-40"
+          style={{ background: '#7C3AED' }}
+        >
+          Agregar {parsed.length > 0 ? `${parsed.length} producto${parsed.length !== 1 ? 's' : ''}` : ''}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function NewListSheet({ onClose, onCreate }: { onClose: () => void; onCreate: (name: string) => void }) {
+  const [name, setName] = useState('');
+  return (
+    <div className="fixed inset-0 z-[100] flex flex-col justify-end">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white rounded-t-3xl px-4 pt-4 pb-10 flex flex-col gap-4">
+        <div className="w-10 h-1 rounded-full bg-zinc-200 mx-auto mb-1" />
+        <h3 className="font-semibold text-zinc-900">Nueva lista habitual</h3>
+        <input
+          autoFocus
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="Ej: Mercado, Supermercado..."
+          className="w-full h-12 rounded-2xl border border-zinc-200 px-4 text-sm focus:outline-none focus:border-violet-400"
+          onKeyDown={e => { if (e.key === 'Enter' && name.trim()) onCreate(name.trim()); }}
+        />
+        <button
+          disabled={!name.trim()}
+          onClick={() => onCreate(name.trim())}
+          className="w-full h-12 rounded-2xl text-sm font-semibold text-white disabled:opacity-40"
+          style={{ background: '#7C3AED' }}
+        >
+          Crear lista
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function UsualListScreen({ list, onBack, onAddItems, onDeleteItem, onDeleteList, onRenameList }: {
+  list: UsualList;
+  onBack: () => void;
+  onAddItems: (items: Omit<UsualListItem, 'id' | 'position'>[]) => void;
+  onDeleteItem: (id: string) => void;
+  onDeleteList: () => void;
+  onRenameList: (name: string) => void;
+}) {
+  const [showAdd, setShowAdd] = useState(false);
+
+  return (
+    <div className="flex flex-col h-full overflow-y-auto bg-zinc-50">
+      <NavBar title={list.name} onBack={onBack}>
+        <button onClick={() => setShowAdd(true)} className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center">
+          <Plus size={16} className="text-zinc-600" />
+        </button>
+        <button onClick={() => { if (confirm(`¿Eliminar lista "${list.name}"?`)) onDeleteList(); }}
+          className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center">
+          <Trash2 size={14} className="text-red-400" />
+        </button>
+      </NavBar>
+
+      <div className="px-4 pb-24 flex flex-col gap-2">
+        <div className="flex items-center gap-2 mb-1 px-1">
+          {colorDot(list.color, 8)}
+          <span className="text-xs text-zinc-400">{list.items.length} producto{list.items.length !== 1 ? 's' : ''}</span>
+        </div>
+
+        {list.items.length === 0 && (
+          <div className="bg-white rounded-2xl p-8 text-center">
+            <p className="text-sm text-zinc-400">Lista vacía. Agrega productos.</p>
+          </div>
+        )}
+
+        {list.items.sort((a, b) => a.position - b.position).map(item => (
+          <div key={item.id} className="flex items-center gap-3 bg-white rounded-2xl px-4 py-3"
+            style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            {colorDot(list.color, 8)}
+            <span className="flex-1 text-[14px] text-zinc-800">{item.name}</span>
+            {(item.quantity || item.unit) && (
+              <span className="text-xs text-zinc-400 bg-zinc-50 px-2 py-0.5 rounded-lg">
+                {fmtQty(item.quantity, item.unit)}
+              </span>
+            )}
+            <button onClick={() => onDeleteItem(item.id)} className="w-6 h-6 flex items-center justify-center">
+              <X size={14} className="text-zinc-300" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {showAdd && (
+        <AddFaltaSheet
+          onClose={() => setShowAdd(false)}
+          onAdd={(parsed) => {
+            onAddItems(parsed.map(p => ({ name: p.name, quantity: p.quantity, unit: p.unit })));
+            setShowAdd(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function PrepareTripScreen({ usualLists, faltaItems, onBack, onCreate }: {
+  usualLists: UsualList[];
+  faltaItems: ShoppingItem[];
+  onBack: () => void;
+  onCreate: (name: string, groups: { groupName: string; color: string; items: Omit<ShoppingTripItem, 'id' | 'position'>[] }[]) => void;
+}) {
+  const [tripName, setTripName] = useState('');
+  const [selectedLists, setSelectedLists] = useState<Set<string>>(new Set());
+  const [includeFalta, setIncludeFalta] = useState(faltaItems.length > 0);
+  const [manualText, setManualText] = useState('');
+  const [step, setStep] = useState<'name' | 'sources'>('name');
+
+  function toggleList(id: string) {
+    const s = new Set(selectedLists);
+    if (s.has(id)) s.delete(id); else s.add(id);
+    setSelectedLists(s);
+  }
+
+  function handleCreate() {
+    const groups: { groupName: string; color: string; items: Omit<ShoppingTripItem, 'id' | 'position'>[] }[] = [];
+
+    // Groups from usual lists
+    selectedLists.forEach(listId => {
+      const list = usualLists.find(l => l.id === listId)!;
+      groups.push({
+        groupName: list.name,
+        color: list.color,
+        items: list.items.map(i => ({
+          name: i.name,
+          quantity: i.quantity,
+          unit: i.unit,
+          status: 'pending',
+          sourceType: 'usual',
+          sourceId: i.id,
+        })),
+      });
+    });
+
+    // Falta comprar group
+    if (includeFalta && faltaItems.length > 0) {
+      groups.push({
+        groupName: 'Falta comprar',
+        color: '#6366F1',
+        items: faltaItems.map(i => ({
+          name: i.name,
+          quantity: null,
+          unit: i.quantity || null,
+          status: 'pending',
+          sourceType: 'reminder',
+          sourceId: i.id,
+        })),
+      });
+    }
+
+    // Manual items
+    const manual = parseShoppingText(manualText);
+    if (manual.length > 0) {
+      groups.push({
+        groupName: 'Extras',
+        color: '#94A3B8',
+        items: manual.map(p => ({
+          name: p.name,
+          quantity: p.quantity,
+          unit: p.unit,
+          status: 'pending',
+          sourceType: 'manual',
+        })),
+      });
+    }
+
+    if (groups.length === 0) {
+      // Create with single empty manual group
+      groups.push({ groupName: 'Mi lista', color: '#94A3B8', items: [] });
+    }
+
+    onCreate(tripName || 'Mi compra', groups);
+  }
+
+  if (step === 'name') {
+    return (
+      <div className="flex flex-col h-full bg-zinc-50">
+        <NavBar title="Nueva compra" onBack={onBack} />
+        <div className="px-4 pt-6 flex flex-col gap-5">
+          <div>
+            <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wide block mb-2">Nombre de la compra</label>
+            <input
+              autoFocus
+              value={tripName}
+              onChange={e => setTripName(e.target.value)}
+              placeholder="Compra del jueves, Mercado semanal..."
+              className="w-full h-12 rounded-2xl border border-zinc-200 px-4 text-sm focus:outline-none focus:border-violet-400 bg-white"
+              onKeyDown={e => { if (e.key === 'Enter') setStep('sources'); }}
+            />
+          </div>
+          <button
+            onClick={() => setStep('sources')}
+            className="w-full h-12 rounded-2xl text-sm font-semibold text-white"
+            style={{ background: '#7C3AED' }}
+          >
+            Continuar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full overflow-y-auto bg-zinc-50">
+      <NavBar title={tripName || 'Nueva compra'} onBack={() => setStep('name')} />
+      <div className="px-4 pb-32 flex flex-col gap-4">
+        <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">¿De dónde importamos?</p>
+
+        {/* Falta comprar */}
+        {faltaItems.length > 0 && (
+          <SourceCard
+            color="#6366F1"
+            title="Falta comprar"
+            subtitle={`${faltaItems.length} productos pendientes`}
+            selected={includeFalta}
+            onToggle={() => setIncludeFalta(!includeFalta)}
+          />
+        )}
+
+        {/* Usual lists */}
+        {usualLists.map(list => (
+          <SourceCard
+            key={list.id}
+            color={list.color}
+            title={list.name}
+            subtitle={`${list.items.length} productos`}
+            selected={selectedLists.has(list.id)}
+            onToggle={() => toggleList(list.id)}
+          />
+        ))}
+
+        {/* Manual */}
+        <div className="bg-white rounded-2xl px-4 py-4" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+          <p className="text-[13px] font-semibold text-zinc-700 mb-2">Agregar productos extras</p>
+          <textarea
+            value={manualText}
+            onChange={e => setManualText(e.target.value)}
+            placeholder={"Tomate 1 kg\n2 lechugas\nYogurt griego"}
+            rows={4}
+            className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-800 resize-none focus:outline-none focus:border-violet-400"
+          />
+          {manualText.trim() && (
+            <p className="text-xs text-violet-500 mt-1">{parseShoppingText(manualText).length} detectados</p>
+          )}
+        </div>
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 px-4 pb-8 pt-3 bg-zinc-50/90 backdrop-blur-sm">
+        <button
+          onClick={handleCreate}
+          className="w-full h-12 rounded-2xl text-sm font-semibold text-white"
+          style={{ background: '#7C3AED' }}
+        >
+          Empezar compra →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SourceCard({ color, title, subtitle, selected, onToggle }: {
+  key?: string; color: string; title: string; subtitle: string; selected: boolean; onToggle: () => void;
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      className="flex items-center gap-3 bg-white rounded-2xl px-4 py-3 text-left w-full"
+      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.05)', border: selected ? `2px solid ${color}` : '2px solid transparent' }}
+    >
+      {colorDot(color, 12)}
+      <div className="flex-1">
+        <p className="text-[14px] font-semibold text-zinc-800">{title}</p>
+        <p className="text-xs text-zinc-400">{subtitle}</p>
+      </div>
+      <div
+        className="w-5 h-5 rounded-full flex items-center justify-center"
+        style={{ background: selected ? color : '#F3F4F6' }}
+      >
+        {selected && <Check size={12} className="text-white" />}
+      </div>
+    </button>
+  );
+}
+
+function TripShopScreen({ trip, onToggleItem, onComplete, onCancel, onBack }: {
+  trip: ShoppingTrip;
+  onToggleItem: (gid: string, iid: string) => void;
+  onComplete: () => void;
+  onCancel: () => void;
+  onBack: () => void;
+}) {
+  const allItems = trip.groups.flatMap(g => g.items);
+  const totalPurchased = allItems.filter(i => i.status === 'purchased').length;
+  const totalItems = allItems.length;
+  const allDone = totalItems > 0 && totalPurchased === totalItems;
+  const progress = totalItems > 0 ? totalPurchased / totalItems : 0;
+
+  return (
+    <div className="flex flex-col h-full bg-zinc-50">
+      <NavBar title={trip.name} onBack={onBack}>
+        <button onClick={onCancel} className="text-xs text-red-400 font-medium px-2">Cancelar</button>
+      </NavBar>
+
+      {/* Progress bar */}
+      <div className="px-4 pb-3">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs text-zinc-500">{totalPurchased} de {totalItems}</span>
+          <span className="text-xs font-semibold" style={{ color: '#7C3AED' }}>{Math.round(progress * 100)}%</span>
+        </div>
+        <div className="h-2 bg-zinc-200 rounded-full overflow-hidden">
+          <div className="h-full rounded-full transition-all duration-300" style={{ width: `${progress * 100}%`, background: '#7C3AED' }} />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-4 pb-28">
+        {trip.groups.map(group => {
+          const pending = group.items.filter(i => i.status === 'pending');
+          const purchased = group.items.filter(i => i.status === 'purchased');
+          return (
+            <div key={group.id} className="mb-5">
+              <div className="flex items-center gap-2 mb-2 px-1">
+                {colorDot(group.color, 8)}
+                <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">{group.name}</span>
+                <span className="text-xs text-zinc-300 ml-auto">{purchased.length}/{group.items.length}</span>
+              </div>
+              <div className="flex flex-col gap-2">
+                {pending.map(item => (
+                  <TripItemRow key={item.id} item={item} groupColor={group.color} onToggle={() => onToggleItem(group.id, item.id)} />
+                ))}
+                {purchased.map(item => (
+                  <TripItemRow key={item.id} item={item} groupColor={group.color} onToggle={() => onToggleItem(group.id, item.id)} dimmed />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 px-4 pb-8 pt-3 bg-zinc-50/90 backdrop-blur-sm">
+        <button
+          onClick={onComplete}
+          disabled={!allDone && totalItems > 0}
+          className="w-full h-12 rounded-2xl text-sm font-semibold text-white disabled:opacity-40"
+          style={{ background: allDone ? '#10B981' : '#7C3AED' }}
+        >
+          {allDone ? '✓ Finalizar compra' : `Finalizar compra (${totalItems - totalPurchased} pendientes)`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TripItemRow({ item, groupColor, onToggle, dimmed = false }: {
+  key?: string; item: ShoppingTripItem; groupColor: string; onToggle: () => void; dimmed?: boolean;
+}) {
+  const purchased = item.status === 'purchased';
+  return (
+    <button
+      onClick={onToggle}
+      className={`flex items-center gap-3 bg-white rounded-2xl px-4 py-3 w-full text-left transition-opacity ${dimmed ? 'opacity-40' : ''}`}
+      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}
+    >
+      <div
+        className="w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all"
+        style={{ borderColor: purchased ? groupColor : '#D1D5DB', background: purchased ? groupColor : 'transparent' }}
+      >
+        {purchased && <Check size={12} className="text-white" />}
+      </div>
+      <span className={`flex-1 text-[14px] ${purchased ? 'line-through text-zinc-400' : 'text-zinc-800'}`}>{item.name}</span>
+      {(item.quantity || item.unit) && (
+        <span className="text-xs text-zinc-400">{fmtQty(item.quantity, item.unit)}</span>
+      )}
+    </button>
+  );
+}
+
+function HistoryScreen({ history, onBack, onRepeat }: {
+  history: ShoppingTrip[];
+  onBack: () => void;
+  onRepeat: (trip: ShoppingTrip) => void;
+}) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  return (
+    <div className="flex flex-col h-full overflow-y-auto bg-zinc-50">
+      <NavBar title="Historial de compras" onBack={onBack} />
+      <div className="px-4 pb-24 flex flex-col gap-3">
+        {history.length === 0 && (
+          <p className="text-sm text-zinc-400 text-center mt-8">Sin compras completadas aún</p>
+        )}
+        {history.map(trip => {
+          const expanded = expandedId === trip.id;
+          const total = trip.groups.reduce((s, g) => s + g.items.length, 0);
+          return (
+            <div key={trip.id} className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <button
+                className="flex items-center gap-3 px-4 py-4 w-full text-left"
+                onClick={() => setExpandedId(expanded ? null : trip.id)}
+              >
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: '#F3F4F6' }}>
+                  <ShoppingCart size={16} className="text-zinc-500" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-zinc-800 text-[14px]">{trip.name}</p>
+                  <p className="text-xs text-zinc-400">{trip.completedAt ? fmtDate(trip.completedAt) : ''} · {total} productos</p>
+                </div>
+                <ChevronRight size={14} className={`text-zinc-300 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+              </button>
+
+              {expanded && (
+                <div className="px-4 pb-4 border-t border-zinc-50">
+                  {trip.groups.map(g => (
+                    <div key={g.id} className="mt-3">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        {colorDot(g.color, 6)}
+                        <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">{g.name}</span>
+                      </div>
+                      {g.items.map(i => (
+                        <div key={i.id} className="flex items-center gap-2 py-1 pl-4">
+                          <Check size={11} className="text-green-400 shrink-0" />
+                          <span className="text-[13px] text-zinc-600">{i.name}</span>
+                          {(i.quantity || i.unit) && <span className="text-xs text-zinc-400">{fmtQty(i.quantity, i.unit)}</span>}
+                        </div>
+                      ))}
                     </div>
                   ))}
+                  <button
+                    onClick={() => onRepeat(trip)}
+                    className="flex items-center gap-2 mt-4 px-4 py-2 rounded-xl text-sm font-medium text-violet-600"
+                    style={{ background: '#F5F3FF' }}
+                  >
+                    <RotateCcw size={14} />
+                    Repetir esta compra
+                  </button>
                 </div>
               )}
             </div>
-          )}
-        </>
-      )}
-
-      {/* ── Barra de agregar (fixed sobre el nav) ── */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-t border-zinc-100 dark:border-zinc-800 px-4 py-3"
-        style={{ paddingBottom: 'calc(12px + 56px + env(safe-area-inset-bottom))' }}>
-
-        {isListening && (
-          <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/20">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-            <span className="text-[12px] font-medium text-red-500">Escuchando…</span>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="flex items-center gap-2">
-          <input
-            ref={inputRef}
-            type="text"
-            value={inputValue}
-            onChange={e => setInputValue(e.target.value)}
-            placeholder="Agregar producto…"
-            className="flex-1 h-10 px-4 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[14px] placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          />
-          <button type="button" onClick={toggleMic}
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition shrink-0 cursor-pointer ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-emerald-500'}`}>
-            {isListening ? <MicOff size={16} /> : <Mic size={16} />}
-          </button>
-          <button type="submit"
-            className="w-10 h-10 rounded-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white flex items-center justify-center transition shrink-0 cursor-pointer shadow-sm">
-            <Plus size={18} />
-          </button>
-        </form>
-
-        {!isListening && !feedback && (
-          <p className="mt-2 text-center text-[10px] text-zinc-400 dark:text-zinc-600">
-            Di <span className="italic">"falta leche"</span> · <span className="italic">"ya compré el arroz"</span> · <span className="italic">"quita las paltas"</span>
-          </p>
-        )}
+          );
+        })}
       </div>
-
     </div>
   );
 }

@@ -634,22 +634,10 @@ export default function ExpensesTab({
         </div>
       )}
 
-      {/* ── Header ── */}
-      <div className="px-5 pt-5 pb-3 bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-zinc-800">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-[20px] font-bold text-zinc-900 dark:text-zinc-100">Gastos</h2>
-            <p className="text-[12px] text-zinc-400 mt-0.5">
-              {filterMonth === 'mes' ? 'Este mes' : 'Todos los gastos'}
-            </p>
-          </div>
-          <button type="button" onClick={() => setShowInfo(!showInfo)} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition text-zinc-400">
-            <Info size={18} />
-          </button>
-        </div>
-
-        {/* Chips de filtro */}
-        <div className="flex gap-2 mt-3 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
+      {/* ── Header / Chips de filtro ── */}
+      <div className="px-4 pt-4 pb-3">
+        {/* Fila 1: categoría */}
+        <div className="flex items-center gap-2">
           {([
             { id: 'todos', label: 'Todos' },
             { id: 'hogar', label: 'Hogar' },
@@ -657,19 +645,27 @@ export default function ExpensesTab({
           ] as const).map(f => (
             <button key={f.id} type="button"
               onClick={() => setFilterMacro(f.id)}
-              className={`flex items-center gap-1.5 h-8 px-3 rounded-full text-[13px] font-medium shrink-0 transition active:scale-95 ${filterMacro === f.id ? 'bg-indigo-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'}`}>
-              {f.id === 'hogar' && <Home size={13} aria-hidden="true" />}
-              {f.id === 'personal' && <User size={13} aria-hidden="true" />}
+              className={`flex items-center gap-1 h-8 px-3 rounded-full text-[13px] font-medium shrink-0 transition active:scale-95 ${filterMacro === f.id ? 'bg-indigo-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'}`}>
+              {f.id === 'hogar' && <Home size={12} aria-hidden="true" />}
+              {f.id === 'personal' && <User size={12} aria-hidden="true" />}
               {f.label}
             </button>
           ))}
-          <button type="button"
-            onClick={() => setFilterMonth(m => m === 'mes' ? 'todo' : 'mes')}
-            className={`flex items-center gap-1.5 h-8 px-3 rounded-full text-[13px] font-medium shrink-0 transition active:scale-95 ml-auto ${filterMonth === 'mes' ? 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500'}`}>
-            <Calendar size={13} aria-hidden="true" />
-            {filterMonth === 'mes' ? 'Este mes' : 'Todo'}
-            <ChevronDown size={12} />
-          </button>
+          <div className="flex-1" />
+        </div>
+        {/* Fila 2: período */}
+        <div className="flex items-center gap-2 mt-2">
+          {([
+            { id: 'mes', label: 'Este mes' },
+            { id: 'todo', label: 'Todos' },
+          ] as const).map(p => (
+            <button key={p.id} type="button"
+              onClick={() => setFilterMonth(p.id)}
+              className={`flex items-center gap-1 h-7 px-3 rounded-full text-[12px] font-medium transition active:scale-95 ${filterMonth === p.id ? 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500'}`}>
+              {p.id === 'mes' && <Calendar size={11} aria-hidden="true" />}
+              {p.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -692,13 +688,13 @@ export default function ExpensesTab({
             )}
           </div>
         ) : (
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl overflow-hidden">
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #4F46E5, #7C3AED)', border: 'none' }}>
             {/* Balance summary row */}
-            <div className="px-4 py-3 border-b border-zinc-50 dark:border-zinc-800">
+            <div className="px-4 py-3 border-b border-white/10">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[12px] font-medium text-zinc-400">Balances pendientes</p>
+                <p className="text-[12px] font-medium text-indigo-200">Balances pendientes</p>
                 {filterMonth === 'mes' && (
-                  <p className="text-[12px] text-zinc-400">Prom. diario: <span className="font-semibold text-zinc-700 dark:text-zinc-300">S/ {dailyAvg.toFixed(0)}</span></p>
+                  <p className="text-[12px] text-indigo-200">Prom. diario: <span className="font-semibold text-white">S/ {dailyAvg.toFixed(0)}</span></p>
                 )}
               </div>
               <div className="flex gap-2 flex-wrap">
@@ -754,7 +750,7 @@ export default function ExpensesTab({
 
             {settlementHistory.length > 0 && (
               <button type="button" onClick={() => setShowSettlementHistory(!showSettlementHistory)}
-                className="w-full px-4 py-2.5 flex items-center gap-1.5 text-[12px] text-zinc-400 hover:text-indigo-500 transition border-t border-zinc-50 dark:border-zinc-800">
+                className="w-full px-4 py-2.5 flex items-center gap-1.5 text-[12px] text-indigo-200 hover:text-white transition border-t border-white/10">
                 <Check size={12} className="text-emerald-500" />
                 Liquidaciones anteriores ({settlementHistory.length})
                 <ChevronDown size={12} className={`ml-auto transition-transform ${showSettlementHistory ? 'rotate-180' : ''}`} />
@@ -766,8 +762,8 @@ export default function ExpensesTab({
                   const fromName = resolvedAllRoommates.find(r => r.id === rec.fromId)?.name || rec.fromId;
                   const toName = resolvedAllRoommates.find(r => r.id === rec.toId)?.name || rec.toId;
                   return (
-                    <div key={rec.id} className="flex items-center justify-between text-[12px] py-1.5 border-t border-zinc-50 dark:border-zinc-800">
-                      <div className="flex items-center gap-1 text-zinc-500">
+                    <div key={rec.id} className="flex items-center justify-between text-[12px] py-1.5 border-t border-white/10">
+                      <div className="flex items-center gap-1 text-indigo-200">
                         <span className="font-medium">{fromName}</span>
                         <ArrowRight size={10} />
                         <span className="font-medium">{toName}</span>

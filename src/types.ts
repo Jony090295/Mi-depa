@@ -125,6 +125,80 @@ export interface ForumReply {
   createdAt: string;
 }
 
+// ── Chat types ────────────────────────────────────────────────────────────────
+
+export interface ChatMessage {
+  id: string;
+  apartmentId: string;
+  senderId: string;
+  senderName: string;
+  type: 'text' | 'image';
+  text?: string;
+  imageUrl?: string;
+  replyToId?: string;
+  replyToPreview?: { senderName: string; text?: string };
+  isPinned: boolean;
+  pinnedBy?: string;
+  pinnedAt?: string;
+  editedAt?: string;
+  deletedAt?: string;
+  createdAt: string;
+}
+
+// ── Shopping v2 types ────────────────────────────────────────────────────────
+
+export interface ParsedShoppingItem {
+  name: string;
+  quantity: number | null;
+  unit: string | null;
+}
+
+export interface UsualListItem {
+  id: string;
+  name: string;
+  quantity: number | null;
+  unit: string | null;
+  position: number;
+}
+
+export interface UsualList {
+  id: string;
+  name: string;
+  color: string;
+  items: UsualListItem[];
+  createdAt: string;
+}
+
+export interface ShoppingTripItem {
+  id: string;
+  name: string;
+  quantity: number | null;
+  unit: string | null;
+  status: 'pending' | 'purchased';
+  sourceType: 'usual' | 'reminder' | 'manual';
+  sourceId?: string;
+  position: number;
+}
+
+export interface ShoppingTripGroup {
+  id: string;
+  name: string;
+  color: string;
+  position: number;
+  items: ShoppingTripItem[];
+}
+
+export interface ShoppingTrip {
+  id: string;
+  name: string;
+  status: 'draft' | 'completed';
+  groups: ShoppingTripGroup[];
+  createdAt: string;
+  completedAt?: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export interface ForumPost {
   id: string;
   author: string;
