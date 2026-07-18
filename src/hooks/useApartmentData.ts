@@ -107,6 +107,8 @@ export function useApartmentData(user: User) {
   const [loading, setLoading]             = useState(true);
   const [noApartment, setNoApartment]     = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState(true);
+  const [customHogarCategories, setCustomHogarCategories] = useState<string[]>([]);
+  const [customPersonalCategories, setCustomPersonalCategories] = useState<string[]>([]);
 
   // ── Load everything from Supabase ─────────────────────────────────────────
   const loadAll = useCallback(async () => {
@@ -145,6 +147,7 @@ export function useApartmentData(user: User) {
           defaultSplitPercentages: apt.default_split_percentages ?? {},
         });
         setOnboardingComplete(apt.onboarding_complete === true);
+        setCustomHogarCategories(apt.custom_hogar_categories ?? []);
       }
 
       // 3. Load all tables in parallel
@@ -171,6 +174,8 @@ export function useApartmentData(user: User) {
       ]);
 
       setRoommates((rmRows ?? []).map(rowToRoommate));
+      const myRmRow = (rmRows ?? []).find((r: any) => r.user_id === user.id);
+      setCustomPersonalCategories(myRmRow?.custom_personal_categories ?? []);
       setExpenses((expRows ?? []).map(rowToExpense));
       setBills((billRows ?? []).map(rowToBill));
       setBillHistory((histRows ?? []).map(rowToHistory));
@@ -441,6 +446,23 @@ export function useApartmentData(user: User) {
     ));
   };
 
+  const addHogarCategory = async (name: string) => {
+    if (!apartmentId) return;
+    const updated = [...customHogarCategories, name];
+    await supabase.from('apartments').update({ custom_hogar_categories: updated }).eq('id', apartmentId);
+    setCustomHogarCategories(updated);
+  };
+
+  const addPersonalCategory = async (name: string) => {
+    if (!apartmentId) return;
+    const updated = [...customPersonalCategories, name];
+    const myRoommate = roommates.find(r => r.userId === user.id);
+    if (myRoommate) {
+      await supabase.from('roommates').update({ custom_personal_categories: updated }).eq('id', myRoommate.id);
+    }
+    setCustomPersonalCategories(updated);
+  };
+
   return {
     loading,
     noApartment,
@@ -467,6 +489,8 @@ export function useApartmentData(user: User) {
     addBillHistory, removeBillHistory, updateBillHistoryEntry,
     addShoppingItem, toggleShoppingItem, removeShoppingItem, updateShoppingItem, clearShoppingList,
     addSettlement,
+    customHogarCategories, customPersonalCategories,
+    addHogarCategory, addPersonalCategory,
     addPost, updatePost, deletePost, addReply,
     addTrustedService, updateTrustedService, deleteTrustedService,
     reload: loadAll,

@@ -60,6 +60,8 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     addBill, updateBill, removeBill,
     addBillHistory, removeBillHistory, updateBillHistoryEntry,
     addShoppingItem, toggleShoppingItem, removeShoppingItem, updateShoppingItem, clearShoppingList,
+    customHogarCategories, customPersonalCategories,
+    addHogarCategory, addPersonalCategory,
     addSettlement, addPost, updatePost, deletePost, addReply,
     addTrustedService, updateTrustedService, deleteTrustedService,
   } = data;
@@ -1013,6 +1015,10 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
             onNavigateTab={setActiveTab}
             bills={bills}
             onAddBill={handleAddBill}
+            customHogarCategories={customHogarCategories}
+            customPersonalCategories={customPersonalCategories}
+            onAddHogarCategory={addHogarCategory}
+            onAddPersonalCategory={addPersonalCategory}
             prefilledBillId={prefilledBillId}
             onClearPrefilledBillId={() => setPrefilledBillId('')}
             settlementHistory={settlementHistory}

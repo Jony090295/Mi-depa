@@ -12,7 +12,10 @@ export interface Apartment {
   roommates: Roommate[];
 }
 
-export type ExpenseCategory = 'alquiler' | 'membresia' | 'auto' | 'servicio' | 'comida' | 'limpieza' | 'otros';
+export type ExpenseCategory = string;
+
+export const HOGAR_DEFAULT_CATEGORIES = ['alquiler', 'servicio', 'comida', 'limpieza', 'membresia', 'auto', 'otros'] as const;
+export const PERSONAL_DEFAULT_CATEGORIES = ['salud', 'auto', 'ropa', 'comida', 'deporte', 'otros'] as const;
 
 export type SplitType = 'porcentaje' | 'proporcional' | 'equitativo'; // % custom, proporcional a ingresos, 50-50
 

@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { Roommate, Expense, ExpenseCategory, SplitType, RecurrentBill, SettlementRecord } from '../types';
-import { CATEGORY_LABELS, inferCategoryFromName } from '../utils';
+import { Roommate, Expense, ExpenseCategory, SplitType, RecurrentBill, SettlementRecord, HOGAR_DEFAULT_CATEGORIES, PERSONAL_DEFAULT_CATEGORIES } from '../types';
+import { CATEGORY_LABELS, getCategoryLabel, inferCategoryFromName } from '../utils';
 import { calculateSettlements } from '../utils';
 import { Plus, Trash2, Split, Calendar, ArrowRight, Info, Check, Pencil, X, AlertTriangle, Camera, FileText } from 'lucide-react';
 
@@ -14,6 +14,10 @@ interface ExpensesTabProps {
   onNavigateTab?: (tab: string) => void;
   bills?: RecurrentBill[];
   onAddBill?: (bill: RecurrentBill) => void;
+  customHogarCategories?: string[];
+  customPersonalCategories?: string[];
+  onAddHogarCategory?: (name: string) => void;
+  onAddPersonalCategory?: (name: string) => void;
   prefilledBillId?: string;
   onClearPrefilledBillId?: () => void;
   settlementHistory?: SettlementRecord[];
@@ -32,6 +36,10 @@ export default function ExpensesTab({
   onNavigateTab,
   bills = [],
   onAddBill,
+  customHogarCategories = [],
+  customPersonalCategories = [],
+  onAddHogarCategory,
+  onAddPersonalCategory,
   prefilledBillId,
   onClearPrefilledBillId,
   settlementHistory = [],
@@ -69,6 +77,8 @@ export default function ExpensesTab({
   const [showRecurringReport, setShowRecurringReport] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
   const [macroCategory, setMacroCategory] = useState<'hogar' | 'personal'>('hogar');
+  const [showNewCatInput, setShowNewCatInput] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const getMonthYearStringFromDate = (dateStr: string) => {
@@ -389,6 +399,8 @@ export default function ExpensesTab({
     setRecurrentBillMonth(currentMonthName);
     setIsRecurring(false);
     setMacroCategory('hogar');
+    setShowNewCatInput(false);
+    setNewCatName('');
     const defaultPercs2 = Object.keys(defaultSplitPercentages).length > 0
       ? Object.fromEntries(Object.entries(defaultSplitPercentages).map(([k, v]) => [k, String(v)]))
       : (() => { const p: Record<string,string> = {}; const eq = Math.round((100/roommates.length)*100)/100; roommates.forEach(r => { p[r.id] = String(eq); }); return p; })();
@@ -730,12 +742,16 @@ export default function ExpensesTab({
                       <button key={opt.value} type="button"
                         onClick={() => {
                           setMacroCategory(opt.value);
+                          setShowNewCatInput(false);
+                          setNewCatName('');
                           if (opt.value === 'personal') {
+                            setCategory(PERSONAL_DEFAULT_CATEGORIES[0]);
                             setSplitType('porcentaje');
                             const percs: Record<string, string> = {};
                             roommates.forEach(r => { percs[r.id] = r.id === paidBy ? '100' : '0'; });
                             setCustomPercentages(percs);
                           } else {
+                            setCategory(HOGAR_DEFAULT_CATEGORIES[0]);
                             setSplitType(defaultSplitType);
                           }
                         }}
@@ -991,20 +1007,58 @@ export default function ExpensesTab({
                   )}
                 </div>
 
-                {/* Categoría — chips */}
+                {/* Categoría — chips dinámicos según macro */}
                 <div>
-                  <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Categoría</label>
+                  <label className="text-[12px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Subcategoría</label>
                   <div className="mt-2 flex gap-2 flex-wrap">
-                    {(['alquiler','membresia','auto','servicio','comida','limpieza','otros'] as ExpenseCategory[]).map(cat => {
+                    {(macroCategory === 'hogar'
+                      ? [...HOGAR_DEFAULT_CATEGORIES, ...customHogarCategories]
+                      : [...PERSONAL_DEFAULT_CATEGORIES, ...customPersonalCategories]
+                    ).map(cat => {
                       const s = CATEGORY_LABELS[cat];
                       const active = category === cat;
                       return (
                         <button key={cat} type="button" onClick={() => setCategory(cat)}
-                          className={`h-8 px-3 rounded-xl text-[12px] font-medium transition active:scale-95 ${active ? `${s.bg} ${s.text} ring-2 ring-indigo-500 ring-offset-1` : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'}`}>
-                          {s.label}
+                          className={`h-8 px-3 rounded-xl text-[12px] font-medium transition active:scale-95 ${active ? `${s ? s.bg : 'bg-indigo-50 dark:bg-indigo-950/40'} ${s ? s.text : 'text-indigo-600 dark:text-indigo-400'} ring-2 ring-indigo-500 ring-offset-1` : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'}`}>
+                          {getCategoryLabel(cat)}
                         </button>
                       );
                     })}
+                    {/* Agregar categoría custom */}
+                    {!showNewCatInput ? (
+                      <button type="button" onClick={() => setShowNewCatInput(true)}
+                        className="h-8 px-3 rounded-xl text-[12px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition active:scale-95 border border-dashed border-zinc-300 dark:border-zinc-600">
+                        + Nueva
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-1.5 mt-1 w-full">
+                        <input autoFocus type="text" value={newCatName} onChange={e => setNewCatName(e.target.value)}
+                          placeholder="Nombre de categoría"
+                          className="flex-1 h-8 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-[12px] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const name = newCatName.trim().toLowerCase();
+                              if (!name) return;
+                              macroCategory === 'hogar' ? onAddHogarCategory?.(name) : onAddPersonalCategory?.(name);
+                              setCategory(name);
+                              setNewCatName('');
+                              setShowNewCatInput(false);
+                            }
+                            if (e.key === 'Escape') { setShowNewCatInput(false); setNewCatName(''); }
+                          }} />
+                        <button type="button" onClick={() => {
+                          const name = newCatName.trim().toLowerCase();
+                          if (!name) return;
+                          macroCategory === 'hogar' ? onAddHogarCategory?.(name) : onAddPersonalCategory?.(name);
+                          setCategory(name);
+                          setNewCatName('');
+                          setShowNewCatInput(false);
+                        }} className="h-8 px-3 rounded-xl bg-indigo-600 text-white text-[12px] font-semibold">OK</button>
+                        <button type="button" onClick={() => { setShowNewCatInput(false); setNewCatName(''); }}
+                          className="h-8 px-2 rounded-xl bg-zinc-200 dark:bg-zinc-700 text-zinc-500 text-[12px]">✕</button>
+                      </div>
+                    )}
                   </div>
                 </div>
 

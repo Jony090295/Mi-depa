@@ -1,14 +1,23 @@
 import { Expense, Roommate, RecurrentBill, RecurrentBillHistory, ShoppingItem, ForumPost, SettlementRecord } from "./types";
 
 export const CATEGORY_LABELS: Record<string, { label: string; icon: string; bg: string; text: string }> = {
-  alquiler: { label: "Alquiler", icon: "Home", bg: "bg-blue-50 dark:bg-blue-950/40", text: "text-blue-600 dark:text-blue-400" },
-  membresia: { label: "Membresías", icon: "Tv", bg: "bg-purple-50 dark:bg-purple-950/40", text: "text-purple-600 dark:text-purple-400" },
-  auto: { label: "Auto / Cochera", icon: "Car", bg: "bg-amber-50 dark:bg-amber-950/40", text: "text-amber-600 dark:text-amber-400" },
-  servicio: { label: "Servicios Básicos", icon: "Droplet", bg: "bg-cyan-50 dark:bg-cyan-950/40", text: "text-cyan-600 dark:text-cyan-400" },
-  comida: { label: "Comida & Víveres", icon: "ShoppingCart", bg: "bg-emerald-50 dark:bg-emerald-950/40", text: "text-emerald-600 dark:text-emerald-400" },
-  limpieza: { label: "Limpieza", icon: "Sparkles", bg: "bg-pink-50 dark:bg-pink-950/40", text: "text-pink-600 dark:text-pink-400" },
-  otros: { label: "Otros", icon: "HelpCircle", bg: "bg-slate-50 dark:bg-slate-950/40", text: "text-slate-600 dark:text-slate-400" }
+  // Hogar
+  alquiler:  { label: "Alquiler",         icon: "Home",         bg: "bg-blue-50 dark:bg-blue-950/40",    text: "text-blue-600 dark:text-blue-400" },
+  membresia: { label: "Membresías",        icon: "Tv",           bg: "bg-purple-50 dark:bg-purple-950/40", text: "text-purple-600 dark:text-purple-400" },
+  auto:      { label: "Auto / Cochera",    icon: "Car",          bg: "bg-amber-50 dark:bg-amber-950/40",  text: "text-amber-600 dark:text-amber-400" },
+  servicio:  { label: "Servicios Básicos", icon: "Droplet",      bg: "bg-cyan-50 dark:bg-cyan-950/40",    text: "text-cyan-600 dark:text-cyan-400" },
+  comida:    { label: "Comida & Víveres",  icon: "ShoppingCart", bg: "bg-emerald-50 dark:bg-emerald-950/40", text: "text-emerald-600 dark:text-emerald-400" },
+  limpieza:  { label: "Limpieza",          icon: "Sparkles",     bg: "bg-pink-50 dark:bg-pink-950/40",    text: "text-pink-600 dark:text-pink-400" },
+  otros:     { label: "Otros",             icon: "HelpCircle",   bg: "bg-slate-50 dark:bg-slate-950/40",  text: "text-slate-600 dark:text-slate-400" },
+  // Personal
+  salud:     { label: "Salud",             icon: "Heart",        bg: "bg-rose-50 dark:bg-rose-950/40",    text: "text-rose-600 dark:text-rose-400" },
+  ropa:      { label: "Ropa",              icon: "ShoppingBag",  bg: "bg-violet-50 dark:bg-violet-950/40", text: "text-violet-600 dark:text-violet-400" },
+  deporte:   { label: "Deporte",           icon: "Dumbbell",     bg: "bg-orange-50 dark:bg-orange-950/40", text: "text-orange-600 dark:text-orange-400" },
 };
+
+export function getCategoryLabel(cat: string): string {
+  return CATEGORY_LABELS[cat]?.label ?? cat.charAt(0).toUpperCase() + cat.slice(1);
+}
 
 export function inferCategoryFromName(name: string): import('./types').ExpenseCategory {
   const l = name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
