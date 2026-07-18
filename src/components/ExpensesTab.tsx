@@ -1372,7 +1372,7 @@ export default function ExpensesTab({
               </form>
 
               {/* ── CTA ── */}
-              <div className="shrink-0 px-4 pt-3" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 20px)' }}>
+              <div className="shrink-0 px-4 pt-3 pb-5">
                 <button
                   id="submit-expense-button"
                   type="submit"
