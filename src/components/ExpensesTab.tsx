@@ -692,7 +692,7 @@ export default function ExpensesTab({
             {/* Balance summary row */}
             <div className="px-4 py-3 border-b border-white/10">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[12px] font-medium text-indigo-200">Balances pendientes</p>
+                <p className="text-[12px] font-medium text-white">Balances pendientes</p>
                 {filterMonth === 'mes' && (
                   <p className="text-[12px] text-indigo-200">Prom. diario: <span className="font-semibold text-white">S/ {dailyAvg.toFixed(0)}</span></p>
                 )}
@@ -702,7 +702,7 @@ export default function ExpensesTab({
                   const debtor = resolvedAllRoommates.find(r => r.id === sett.from);
                   const creditor = resolvedAllRoommates.find(r => r.id === sett.to);
                   return (
-                    <div key={idx} className="flex items-center gap-1.5 bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 rounded-xl px-3 py-2">
+                    <div key={idx} className="flex items-center gap-1.5 bg-white dark:bg-zinc-800 rounded-xl px-3 py-2">
                       <span className="text-[12px] font-semibold" style={{ color: debtor?.color }}>{debtor?.name}</span>
                       <ArrowRight size={10} className="text-zinc-400" />
                       <span className="text-[12px] font-semibold" style={{ color: creditor?.color }}>{creditor?.name}</span>
