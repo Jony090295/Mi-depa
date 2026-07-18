@@ -19,7 +19,7 @@ import ProjectedBudget from './components/ProjectedBudget';
 // Icons
 import {
   Home, Split, Clock, ShoppingCart, Users, BellRing, ChevronRight,
-  Moon, Sun, Settings, Check, ArrowRight, Plus, Pencil, Trash2, TrendingUp, Loader, Copy, LogOut,
+  Moon, Sun, Settings, Check, ArrowRight, Plus, Pencil, Trash2, TrendingUp, Loader, Copy, LogOut, Receipt,
 } from 'lucide-react';
 
 // ─── Auth shell ──────────────────────────────────────────────────────────────
@@ -657,7 +657,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
   const navTabs = [
     { id: 'budget',           icon: <Home size={20} />,        label: 'Inicio',      env: 'depa' as const },
     { id: 'projected_budget', icon: <TrendingUp size={20} />,  label: 'Reportes',    env: 'depa' as const },
-    { id: 'expenses',         icon: <Plus size={24} />,         label: 'Gastos',      env: 'depa' as const, primary: true },
+    { id: 'expenses',         icon: <Receipt size={22} />,      label: 'Gastos',      env: 'depa' as const, primary: true },
     { id: 'shopping',         icon: <ShoppingCart size={20} />, label: 'Compras',     env: 'depa' as const },
     { id: 'forum',            icon: <Users size={20} />,        label: 'Comunidad',   env: 'comunidad' as const },
   ];
