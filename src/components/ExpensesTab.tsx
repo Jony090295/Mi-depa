@@ -906,11 +906,16 @@ export default function ExpensesTab({
           <div className="fixed inset-x-0 top-0 z-[100] flex flex-col justify-end" style={{ bottom: 'calc(60px + env(safe-area-inset-bottom))', background: 'rgba(0,0,0,0.45)' }} onClick={cancelEdit}>
             <div className="w-full max-w-xl mx-auto flex flex-col rounded-t-3xl overflow-hidden" style={{ background: '#F7F7FC', maxHeight: 'calc(100dvh - 80px)' }} onClick={e => e.stopPropagation()}>
 
+              {/* ── Drag handle ── */}
+              <div className="shrink-0 flex justify-center pt-3 pb-1 bg-white/90">
+                <div className="w-10 h-1 rounded-full" style={{ background: '#D1D5DB' }} />
+              </div>
+
               {/* ── Header ── */}
               <div
                 className="shrink-0 bg-white/90 backdrop-blur-sm border-b border-black/[0.05]"
               >
-                <div className="flex items-center justify-between px-5 pb-3 pt-1">
+                <div className="flex items-center justify-between px-5 pb-3 pt-2">
                   <button
                     type="button"
                     onClick={cancelEdit}
