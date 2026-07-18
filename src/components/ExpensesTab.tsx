@@ -748,8 +748,8 @@ export default function ExpensesTab({
       <div className="space-y-8">
         {/* Modal / Dialog for registering or editing expense */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#F7F7FC' }}>
-            <div className="w-full max-w-xl mx-auto flex flex-col h-full">
+          <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={cancelEdit}>
+            <div className="w-full max-w-xl mx-auto flex flex-col rounded-t-3xl overflow-hidden" style={{ background: '#F7F7FC', maxHeight: '93dvh' }} onClick={e => e.stopPropagation()}>
 
               {/* ── Header ── */}
               <div
@@ -768,13 +768,7 @@ export default function ExpensesTab({
                   <h2 className="text-[16px] font-semibold" style={{ color: '#242536' }}>
                     {editingExpenseId ? 'Editar gasto' : 'Nuevo gasto'}
                   </h2>
-                  <button
-                    type="button"
-                    onClick={() => formRef.current?.requestSubmit()}
-                    className="h-11 px-3 text-[14px] font-semibold text-indigo-600 rounded-xl hover:bg-indigo-50 transition active:scale-95"
-                  >
-                    Guardar
-                  </button>
+                  <div className="w-11" />
                 </div>
 
                 {/* Payer selector */}
