@@ -242,9 +242,25 @@ export default function Reportes({ bills, roommates, expenses, rentExchangeRate 
     <div className="max-w-xl mx-auto" style={{ background: '#F7F7FC', minHeight: '100vh', paddingBottom: 96 }}>
 
       {/* ── Header ── */}
-      <div className="bg-white px-4 pt-4 pb-0" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-        <div className="flex items-center justify-between mb-3">
-          <h1 className="text-[17px] font-bold" style={{ color: '#1A1A2E' }}>Reportes</h1>
+      <div className="bg-white px-4 pt-2 pb-0" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+        {/* Tabs + botón CSV */}
+        <div className="flex items-center justify-between">
+          <div className="flex">
+            {(['resumen', 'insights'] as const).map(t => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setActiveTab(t)}
+                className="px-5 py-2.5 text-[14px] font-medium transition"
+                style={{
+                  color: activeTab === t ? '#4F46E5' : '#9CA3AF',
+                  borderBottom: activeTab === t ? '2px solid #4F46E5' : '2px solid transparent',
+                }}
+              >
+                {t === 'resumen' ? 'Resumen' : 'Insights'}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             onClick={() => downloadCSV(filteredExpenses, rate, roommates)}
@@ -254,24 +270,6 @@ export default function Reportes({ bills, roommates, expenses, rentExchangeRate 
           >
             <Download size={15} style={{ color: '#6B7280' }} />
           </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex">
-          {(['resumen', 'insights'] as const).map(t => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setActiveTab(t)}
-              className="px-5 py-2.5 text-[14px] font-medium transition"
-              style={{
-                color: activeTab === t ? '#4F46E5' : '#9CA3AF',
-                borderBottom: activeTab === t ? '2px solid #4F46E5' : '2px solid transparent',
-              }}
-            >
-              {t === 'resumen' ? 'Resumen' : 'Insights'}
-            </button>
-          ))}
         </div>
       </div>
 
