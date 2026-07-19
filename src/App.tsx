@@ -6,6 +6,7 @@ import { calculateSettlements } from './utils';
 // Auth + Supabase
 import { useAuth } from './hooks/useAuth';
 import { useApartmentData } from './hooks/useApartmentData';
+import { useUnreadCount } from './hooks/useUnreadCount';
 import AuthScreen from './components/AuthScreen';
 import ApartmentSetupScreen from './components/ApartmentSetupScreen';
 
@@ -87,6 +88,8 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
 
   const [activeTab, setActiveTab] = useState<'overview' | 'budget' | 'expenses' | 'bills' | 'chat' | 'directory' | 'forum' | 'projected_budget'>('budget');
   const [environment, setEnvironment] = useState<'depa' | 'comunidad'>('depa');
+
+  const { unreadCount } = useUnreadCount(data.apartmentId, user.id, activeTab === 'chat');
   const [globalAlert, setGlobalAlert] = useState<string | null>(null);
   const [prefilledBillId, setPrefilledBillId] = useState<string>('');
 
@@ -1110,10 +1113,15 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                     <span className="text-white">{tab.icon}</span>
                   </div>
                 ) : (
-                  <div className={`flex items-center justify-center w-6 h-6 transition-colors duration-150 ${
-                    isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-400 dark:text-zinc-500'
-                  }`}>
-                    {tab.icon}
+                  <div className="relative flex items-center justify-center w-6 h-6">
+                    <span className={`transition-colors duration-150 ${
+                      isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-400 dark:text-zinc-500'
+                    }`}>{tab.icon}</span>
+                    {tab.id === 'chat' && unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1.5 min-w-[16px] h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center px-0.5 leading-none">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
                   </div>
                 )}
                 <span className={`text-[10px] font-medium leading-none transition-colors duration-150 ${
