@@ -387,7 +387,7 @@ export default function ChatTab({ apartmentId, apartmentName, roommates, current
             onKeyDown={handleKeyDown}
             placeholder="Escribe un mensaje…"
             rows={1}
-            className="flex-1 resize-none rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-4 py-2.5 text-sm text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:border-indigo-300 dark:focus:border-indigo-600 overflow-hidden"
+            className="flex-1 resize-none rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-4 py-2.5 text-sm text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:border-indigo-300 dark:focus:border-indigo-600 overflow-y-auto"
             style={{ maxHeight: 120 }}
           />
 
