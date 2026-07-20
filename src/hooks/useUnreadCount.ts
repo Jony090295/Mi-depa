@@ -5,10 +5,14 @@ export function useUnreadCount(apartmentId: string | null, currentUserId: string
   const [unreadCount, setUnreadCount] = useState(0);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
+  const isActiveRef = useRef(isActive);
+  useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
+
   const fetchUnread = useCallback(async () => {
     if (!apartmentId || !currentUserId) return;
+    // If chat tab is already open, nothing is unread
+    if (isActiveRef.current) { setUnreadCount(0); return; }
 
-    // Get last_read_at for this user
     const { data: readRow } = await supabase
       .from('chat_reads')
       .select('last_read_at')
@@ -18,7 +22,6 @@ export function useUnreadCount(apartmentId: string | null, currentUserId: string
 
     const lastRead = readRow?.last_read_at ?? '1970-01-01T00:00:00Z';
 
-    // Count messages after last_read_at NOT sent by current user
     const { count } = await supabase
       .from('chat_messages')
       .select('id', { count: 'exact', head: true })
@@ -27,7 +30,8 @@ export function useUnreadCount(apartmentId: string | null, currentUserId: string
       .is('deleted_at', null)
       .gt('created_at', lastRead);
 
-    setUnreadCount(count ?? 0);
+    // Only update if tab is still inactive (avoid race if user switched tabs mid-fetch)
+    if (!isActiveRef.current) setUnreadCount(count ?? 0);
   }, [apartmentId, currentUserId]);
 
   // Mark as read when chat tab is active

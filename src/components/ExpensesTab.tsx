@@ -690,26 +690,28 @@ export default function ExpensesTab({
         ) : (
           <div className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #EDE8FB 0%, #E8E2FA 100%)', border: 'none' }}>
             {/* Balance summary row */}
-            <div className="px-4 py-3 border-b border-black/5">
-              <p className="text-[12px] font-semibold mb-2" style={{ color: '#4B32E6' }}>Balances pendientes</p>
-              <div className="flex gap-2 flex-wrap">
+            <div className="px-4 pt-4 pb-3 border-b border-black/5">
+              <p className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: '#7C5CFC', opacity: 0.7 }}>Balances pendientes</p>
+              <div className="flex flex-col gap-3">
                 {settlements.map((sett, idx) => {
                   const debtor = resolvedAllRoommates.find(r => r.id === sett.from);
                   const creditor = resolvedAllRoommates.find(r => r.id === sett.to);
                   return (
-                    <div key={idx} className="flex items-center justify-between w-full gap-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[13px] font-semibold" style={{ color: debtor?.color }}>{debtor?.name}</span>
-                        <ArrowRight size={12} className="text-zinc-400" />
-                        <span className="text-[13px] font-semibold" style={{ color: creditor?.color }}>{creditor?.name}</span>
+                    <div key={idx} className="flex items-center justify-between w-full gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0" style={{ background: debtor?.color ?? '#6366F1' }}>{debtor?.name?.[0]}</span>
+                        <span className="text-[14px] font-semibold truncate" style={{ color: debtor?.color }}>{debtor?.name}</span>
+                        <ArrowRight size={11} className="text-zinc-400 shrink-0" />
+                        <span className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0" style={{ background: creditor?.color ?? '#EC4899' }}>{creditor?.name?.[0]}</span>
+                        <span className="text-[14px] font-semibold truncate" style={{ color: creditor?.color }}>{creditor?.name}</span>
                       </div>
-                      <div className="flex items-center gap-3 ml-auto">
-                        <span className="text-[15px] font-bold text-rose-600 tabular-nums">
+                      <div className="flex items-center gap-2 ml-auto shrink-0">
+                        <span className="text-[16px] font-bold tabular-nums" style={{ color: '#E53E3E' }}>
                           {sett.currency === 'USD' ? '$' : 'S/'}{sett.amount.toFixed(2)}
                         </span>
                         <button type="button"
                           onClick={() => setSettlingIndex(settlingIndex === idx ? null : idx)}
-                          className="h-7 px-3 rounded-lg text-white text-[12px] font-semibold active:scale-95 transition" style={{ background: '#4B32E6' }}>
+                          className="h-7 px-3 rounded-full text-white text-[12px] font-semibold active:scale-95 transition" style={{ background: '#4B32E6' }}>
                           Pagar
                         </button>
                       </div>
@@ -749,14 +751,14 @@ export default function ExpensesTab({
 
             {settlementHistory.length > 0 && (
               <button type="button" onClick={() => setShowSettlementHistory(!showSettlementHistory)}
-                className="w-full px-4 py-2.5 flex items-center gap-1.5 text-[12px] text-zinc-700 transition border-t border-black/5">
-                <Check size={12} className="text-emerald-500" />
-                Liquidaciones anteriores ({settlementHistory.length})
-                <ChevronDown size={12} className={`ml-auto transition-transform ${showSettlementHistory ? 'rotate-180' : ''}`} />
+                className="w-full px-4 py-2.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest transition border-t border-black/5" style={{ color: '#7C5CFC', opacity: 0.7 }}>
+                Liquidaciones
+                <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold text-white" style={{ background: '#4B32E6', opacity: 1 }}>{settlementHistory.length}</span>
+                <ChevronDown size={12} className={`ml-auto transition-transform`} style={{ opacity: 0.6, transform: showSettlementHistory ? 'rotate(180deg)' : 'rotate(0deg)' }} />
               </button>
             )}
             {showSettlementHistory && (
-              <div className="px-4 pb-4 space-y-2 animate-fadeIn">
+              <div className="px-4 pb-4 animate-fadeIn">
                 {settlementHistory.map((rec, i) => {
                   const fromR = resolvedAllRoommates.find(r => r.id === rec.fromId);
                   const toR   = resolvedAllRoommates.find(r => r.id === rec.toId);
@@ -764,20 +766,23 @@ export default function ExpensesTab({
                   const toName   = toR?.name   || rec.toId;
                   const dateStr  = new Date(rec.date).toLocaleDateString('es-PE', { day: 'numeric', month: 'short' });
                   return (
-                    <div key={rec.id} className={`flex items-center justify-between py-2 ${i > 0 ? 'border-t border-black/5' : ''}`}>
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1.5">
+                    <div key={rec.id} className={`flex items-center justify-between py-2.5 ${i > 0 ? 'border-t border-black/5' : ''}`}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex items-center gap-1">
                           <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0" style={{ background: fromR?.color ?? '#6366F1' }}>{fromName[0]}</span>
-                          <span className="text-[12px] font-semibold text-zinc-600">{fromName}</span>
+                          <span className="text-[12px] font-semibold text-zinc-700">{fromName}</span>
                         </div>
-                        <ArrowRight size={10} className="text-zinc-300" />
-                        <div className="flex items-center gap-1.5">
+                        <ArrowRight size={9} className="text-zinc-300 shrink-0" />
+                        <div className="flex items-center gap-1">
                           <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0" style={{ background: toR?.color ?? '#EC4899' }}>{toName[0]}</span>
-                          <span className="text-[12px] font-semibold text-zinc-600">{toName}</span>
+                          <span className="text-[12px] font-semibold text-zinc-700">{toName}</span>
                         </div>
-                        <span className="text-[11px] text-zinc-400 ml-1">{dateStr}</span>
+                        <span className="text-[10px] text-zinc-400 ml-0.5 tabular-nums">{dateStr}</span>
                       </div>
-                      <span className="text-[13px] font-bold text-emerald-600 tabular-nums">{rec.currency === 'USD' ? '$' : 'S/'}{rec.amount.toFixed(2)}</span>
+                      <div className="flex items-center gap-2 shrink-0 ml-2">
+                        <span className="text-[13px] font-bold text-emerald-600 tabular-nums">{rec.currency === 'USD' ? '$' : 'S/'}{rec.amount.toFixed(2)}</span>
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: '#D1FAE5', color: '#065F46' }}>✓ Pagado</span>
+                      </div>
                     </div>
                   );
                 })}
