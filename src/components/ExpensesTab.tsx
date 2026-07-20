@@ -756,19 +756,28 @@ export default function ExpensesTab({
               </button>
             )}
             {showSettlementHistory && (
-              <div className="px-4 pb-3 space-y-1.5 animate-fadeIn">
-                {settlementHistory.map(rec => {
-                  const fromName = resolvedAllRoommates.find(r => r.id === rec.fromId)?.name || rec.fromId;
-                  const toName = resolvedAllRoommates.find(r => r.id === rec.toId)?.name || rec.toId;
+              <div className="px-4 pb-4 space-y-2 animate-fadeIn">
+                {settlementHistory.map((rec, i) => {
+                  const fromR = resolvedAllRoommates.find(r => r.id === rec.fromId);
+                  const toR   = resolvedAllRoommates.find(r => r.id === rec.toId);
+                  const fromName = fromR?.name || rec.fromId;
+                  const toName   = toR?.name   || rec.toId;
+                  const dateStr  = new Date(rec.date).toLocaleDateString('es-PE', { day: 'numeric', month: 'short' });
                   return (
-                    <div key={rec.id} className="flex items-center justify-between text-[12px] py-1.5 border-t border-white/10">
-                      <div className="flex items-center gap-1 text-indigo-200">
-                        <span className="font-medium">{fromName}</span>
-                        <ArrowRight size={10} />
-                        <span className="font-medium">{toName}</span>
-                        <span className="text-zinc-400">· {rec.date}</span>
+                    <div key={rec.id} className={`flex items-center justify-between py-2 ${i > 0 ? 'border-t border-black/5' : ''}`}>
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0" style={{ background: fromR?.color ?? '#6366F1' }}>{fromName[0]}</span>
+                          <span className="text-[12px] font-semibold text-zinc-600">{fromName}</span>
+                        </div>
+                        <ArrowRight size={10} className="text-zinc-300" />
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0" style={{ background: toR?.color ?? '#EC4899' }}>{toName[0]}</span>
+                          <span className="text-[12px] font-semibold text-zinc-600">{toName}</span>
+                        </div>
+                        <span className="text-[11px] text-zinc-400 ml-1">{dateStr}</span>
                       </div>
-                      <span className="font-mono font-bold text-emerald-600">{rec.currency === 'USD' ? '$' : 'S/'}{rec.amount.toFixed(2)}</span>
+                      <span className="text-[13px] font-bold text-emerald-600 tabular-nums">{rec.currency === 'USD' ? '$' : 'S/'}{rec.amount.toFixed(2)}</span>
                     </div>
                   );
                 })}
