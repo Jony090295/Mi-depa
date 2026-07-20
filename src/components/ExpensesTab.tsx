@@ -899,7 +899,7 @@ export default function ExpensesTab({
       <div className="space-y-8">
         {/* Modal / Dialog for registering or editing expense */}
         {isModalOpen && (
-          <div className="fixed inset-x-0 top-0 z-[100] flex flex-col justify-end" style={{ bottom: 'calc(60px + env(safe-area-inset-bottom))', background: 'rgba(0,0,0,0.45)' }} onClick={cancelEdit}>
+          <div className="fixed inset-x-0 top-0 z-[100] flex flex-col justify-end" style={{ bottom: 0, background: 'rgba(0,0,0,0.45)' }} onClick={cancelEdit}>
             <div className="w-full max-w-xl mx-auto flex flex-col rounded-t-3xl overflow-hidden" style={{ background: '#F7F7FC', maxHeight: 'calc(100dvh - 80px)' }} onClick={e => e.stopPropagation()}>
 
               {/* ── Drag handle ── */}
@@ -982,8 +982,8 @@ export default function ExpensesTab({
                 id="expense-form"
                 ref={formRef}
                 onSubmit={handleSubmit}
-                className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
-                style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+                className="flex-1 overflow-y-auto px-4 pt-4 space-y-3"
+                style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', paddingBottom: 'calc(90px + env(safe-area-inset-bottom))' } as React.CSSProperties}
                 onClick={() => showPayerDropdown && setShowPayerDropdown(false)}
               >
 
