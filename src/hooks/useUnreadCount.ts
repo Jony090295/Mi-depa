@@ -5,8 +5,8 @@ function lsKey(apartmentId: string, userId: string) {
   return `chat_read:${apartmentId}:${userId}`;
 }
 
-function getLocalLastRead(apartmentId: string, userId: string): string {
-  return localStorage.getItem(lsKey(apartmentId, userId)) ?? '1970-01-01T00:00:00Z';
+function getLocalLastRead(apartmentId: string, userId: string): string | null {
+  return localStorage.getItem(lsKey(apartmentId, userId));
 }
 
 function setLocalLastRead(apartmentId: string, userId: string, ts: string) {
@@ -24,8 +24,9 @@ export function useUnreadCount(apartmentId: string | null, currentUserId: string
     if (!apartmentId || !currentUserId) return;
     if (isActiveRef.current) { setUnreadCount(0); return; }
 
-    // Try DB first, fall back to localStorage
-    let lastRead = getLocalLastRead(apartmentId, currentUserId);
+    const localLastRead = getLocalLastRead(apartmentId, currentUserId);
+
+    // Try DB
     const { data: readRow } = await supabase
       .from('chat_reads')
       .select('last_read_at')
@@ -33,10 +34,18 @@ export function useUnreadCount(apartmentId: string | null, currentUserId: string
       .eq('user_id', currentUserId)
       .maybeSingle();
 
+    let lastRead: string;
     if (readRow?.last_read_at) {
       lastRead = readRow.last_read_at;
-      // Keep localStorage in sync
       setLocalLastRead(apartmentId, currentUserId, lastRead);
+    } else if (localLastRead) {
+      lastRead = localLastRead;
+    } else {
+      // First time ever — treat everything as read, save now to localStorage
+      const now = new Date().toISOString();
+      setLocalLastRead(apartmentId, currentUserId, now);
+      setUnreadCount(0);
+      return;
     }
 
     const { count } = await supabase
