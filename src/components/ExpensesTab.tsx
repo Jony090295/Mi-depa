@@ -688,7 +688,7 @@ export default function ExpensesTab({
             )}
           </div>
         ) : (
-          <div className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #F7F4FD 0%, #F3F0FD 100%)', border: 'none' }}>
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #EDE8FB 0%, #E8E2FA 100%)', border: 'none' }}>
             {/* Balance summary row */}
             <div className="px-4 py-3 border-b border-black/5">
               <p className="text-[12px] font-semibold mb-2" style={{ color: '#4B32E6' }}>Balances pendientes</p>
