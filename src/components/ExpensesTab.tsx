@@ -599,7 +599,7 @@ export default function ExpensesTab({
   const dailyAvg = dayOfMonth > 0 ? totalVisible / dayOfMonth : 0;
 
   return (
-    <div className="max-w-xl mx-auto" style={{ background: '#F7F7FC', minHeight: '100vh', paddingBottom: 96 }}>
+    <div className="max-w-xl mx-auto" style={{ background: '#F9FAFB', minHeight: '100vh', paddingBottom: 96 }}>
       {/* Toast */}
       {successMsg && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-lg flex items-center gap-2 z-50 animate-fadeIn">
