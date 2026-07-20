@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
+function lsKey(apartmentId: string, userId: string) {
+  return `chat_read:${apartmentId}:${userId}`;
+}
+
+function getLocalLastRead(apartmentId: string, userId: string): string {
+  return localStorage.getItem(lsKey(apartmentId, userId)) ?? '1970-01-01T00:00:00Z';
+}
+
+function setLocalLastRead(apartmentId: string, userId: string, ts: string) {
+  localStorage.setItem(lsKey(apartmentId, userId), ts);
+}
+
 export function useUnreadCount(apartmentId: string | null, currentUserId: string, isActive: boolean) {
   const [unreadCount, setUnreadCount] = useState(0);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -10,9 +22,10 @@ export function useUnreadCount(apartmentId: string | null, currentUserId: string
 
   const fetchUnread = useCallback(async () => {
     if (!apartmentId || !currentUserId) return;
-    // If chat tab is already open, nothing is unread
     if (isActiveRef.current) { setUnreadCount(0); return; }
 
+    // Try DB first, fall back to localStorage
+    let lastRead = getLocalLastRead(apartmentId, currentUserId);
     const { data: readRow } = await supabase
       .from('chat_reads')
       .select('last_read_at')
@@ -20,7 +33,11 @@ export function useUnreadCount(apartmentId: string | null, currentUserId: string
       .eq('user_id', currentUserId)
       .maybeSingle();
 
-    const lastRead = readRow?.last_read_at ?? '1970-01-01T00:00:00Z';
+    if (readRow?.last_read_at) {
+      lastRead = readRow.last_read_at;
+      // Keep localStorage in sync
+      setLocalLastRead(apartmentId, currentUserId, lastRead);
+    }
 
     const { count } = await supabase
       .from('chat_messages')
@@ -30,15 +47,16 @@ export function useUnreadCount(apartmentId: string | null, currentUserId: string
       .is('deleted_at', null)
       .gt('created_at', lastRead);
 
-    // Only update if tab is still inactive (avoid race if user switched tabs mid-fetch)
     if (!isActiveRef.current) setUnreadCount(count ?? 0);
   }, [apartmentId, currentUserId]);
 
-  // Mark as read when chat tab is active
   const markRead = useCallback(async () => {
     if (!apartmentId || !currentUserId) return;
+    const now = new Date().toISOString();
+    // Always save to localStorage so it persists even if DB table doesn't exist
+    setLocalLastRead(apartmentId, currentUserId, now);
     await supabase.from('chat_reads').upsert(
-      { apartment_id: apartmentId, user_id: currentUserId, last_read_at: new Date().toISOString() },
+      { apartment_id: apartmentId, user_id: currentUserId, last_read_at: now },
       { onConflict: 'apartment_id,user_id' }
     );
     setUnreadCount(0);
@@ -48,12 +66,10 @@ export function useUnreadCount(apartmentId: string | null, currentUserId: string
     fetchUnread();
   }, [fetchUnread]);
 
-  // Mark read when tab becomes active
   useEffect(() => {
     if (isActive) markRead();
   }, [isActive, markRead]);
 
-  // Realtime: listen for new messages to update badge
   useEffect(() => {
     if (!apartmentId) return;
     if (channelRef.current) supabase.removeChannel(channelRef.current);
@@ -66,15 +82,14 @@ export function useUnreadCount(apartmentId: string | null, currentUserId: string
         table: 'chat_messages',
         filter: `apartment_id=eq.${apartmentId}`,
       }, (payload) => {
-        // Only count messages from others
         if (payload.new.sender_id === currentUserId) return;
-        if (!isActive) setUnreadCount(prev => prev + 1);
+        if (!isActiveRef.current) setUnreadCount(prev => prev + 1);
       })
       .subscribe();
 
     channelRef.current = ch;
     return () => { supabase.removeChannel(ch); };
-  }, [apartmentId, currentUserId, isActive]);
+  }, [apartmentId, currentUserId]);
 
   return { unreadCount, markRead };
 }
