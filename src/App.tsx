@@ -1100,6 +1100,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
         >
           {navTabs.map((tab) => {
             const isActive = activeTab === tab.id || (tab.id === 'forum' && activeTab === 'directory');
+            const isPrimary = tab.primary;
             return (
               <button
                 key={tab.id}
@@ -1108,22 +1109,28 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                   setActiveTab(tab.id as typeof activeTab);
                 }}
                 className={`relative flex flex-col items-center justify-center gap-[3px] transition-all duration-200 active:scale-95 rounded-full px-3 py-2 ${
-                  isActive ? 'bg-zinc-900/10' : ''
+                  !isPrimary && isActive ? 'bg-zinc-900/10' : ''
                 }`}
                 aria-label={tab.label}
               >
-                <div className="relative flex items-center justify-center w-6 h-6">
-                  <span className={`transition-colors duration-150 ${
-                    isActive ? 'text-zinc-900' : 'text-zinc-400'
-                  }`}>{tab.icon}</span>
-                  {tab.id === 'chat' && unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1.5 min-w-[15px] h-[15px] rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center px-0.5 leading-none">
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </span>
-                  )}
-                </div>
+                {isPrimary ? (
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/40 -mt-8 mb-0.5">
+                    <span className="text-white">{tab.icon}</span>
+                  </div>
+                ) : (
+                  <div className="relative flex items-center justify-center w-6 h-6">
+                    <span className={`transition-colors duration-150 ${
+                      isActive ? 'text-zinc-900' : 'text-zinc-400'
+                    }`}>{tab.icon}</span>
+                    {tab.id === 'chat' && unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1.5 min-w-[15px] h-[15px] rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center px-0.5 leading-none">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
+                  </div>
+                )}
                 <span className={`text-[10px] font-medium leading-none transition-colors duration-150 ${
-                  isActive ? 'text-zinc-900' : 'text-zinc-400'
+                  isPrimary ? 'text-indigo-600' : isActive ? 'text-zinc-900' : 'text-zinc-400'
                 }`}>
                   {tab.label}
                 </span>
