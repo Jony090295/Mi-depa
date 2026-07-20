@@ -697,18 +697,22 @@ export default function ExpensesTab({
                   const debtor = resolvedAllRoommates.find(r => r.id === sett.from);
                   const creditor = resolvedAllRoommates.find(r => r.id === sett.to);
                   return (
-                    <div key={idx} className="flex items-center gap-1.5">
-                      <span className="text-[12px] font-semibold" style={{ color: debtor?.color }}>{debtor?.name}</span>
-                      <ArrowRight size={10} className="text-zinc-400" />
-                      <span className="text-[12px] font-semibold" style={{ color: creditor?.color }}>{creditor?.name}</span>
-                      <span className="text-[13px] font-bold text-rose-600 tabular-nums ml-1">
-                        {sett.currency === 'USD' ? '$' : 'S/'}{sett.amount.toFixed(2)}
-                      </span>
-                      <button type="button"
-                        onClick={() => setSettlingIndex(settlingIndex === idx ? null : idx)}
-                        className="ml-1 h-6 px-2 rounded-lg text-white text-[11px] font-semibold active:scale-95 transition" style={{ background: '#4B32E6' }}>
-                        Pagar
-                      </button>
+                    <div key={idx} className="flex items-center justify-between w-full gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-semibold" style={{ color: debtor?.color }}>{debtor?.name}</span>
+                        <ArrowRight size={12} className="text-zinc-400" />
+                        <span className="text-[13px] font-semibold" style={{ color: creditor?.color }}>{creditor?.name}</span>
+                      </div>
+                      <div className="flex items-center gap-3 ml-auto">
+                        <span className="text-[15px] font-bold text-rose-600 tabular-nums">
+                          {sett.currency === 'USD' ? '$' : 'S/'}{sett.amount.toFixed(2)}
+                        </span>
+                        <button type="button"
+                          onClick={() => setSettlingIndex(settlingIndex === idx ? null : idx)}
+                          className="h-7 px-3 rounded-lg text-white text-[12px] font-semibold active:scale-95 transition" style={{ background: '#4B32E6' }}>
+                          Pagar
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
