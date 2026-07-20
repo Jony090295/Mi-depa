@@ -688,30 +688,25 @@ export default function ExpensesTab({
             )}
           </div>
         ) : (
-          <div className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #4F46E5, #7C3AED)', border: 'none' }}>
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #F7F4FD 0%, #F3F0FD 100%)', border: 'none' }}>
             {/* Balance summary row */}
-            <div className="px-4 py-3 border-b border-white/10">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[12px] font-medium text-white">Balances pendientes</p>
-                {filterMonth === 'mes' && (
-                  <p className="text-[12px] text-indigo-200">Prom. diario: <span className="font-semibold text-white">S/ {dailyAvg.toFixed(0)}</span></p>
-                )}
-              </div>
+            <div className="px-4 py-3 border-b border-black/5">
+              <p className="text-[12px] font-semibold mb-2" style={{ color: '#4B32E6' }}>Balances pendientes</p>
               <div className="flex gap-2 flex-wrap">
                 {settlements.map((sett, idx) => {
                   const debtor = resolvedAllRoommates.find(r => r.id === sett.from);
                   const creditor = resolvedAllRoommates.find(r => r.id === sett.to);
                   return (
-                    <div key={idx} className="flex items-center gap-1.5 bg-white dark:bg-zinc-800 rounded-xl px-3 py-2">
+                    <div key={idx} className="flex items-center gap-1.5">
                       <span className="text-[12px] font-semibold" style={{ color: debtor?.color }}>{debtor?.name}</span>
                       <ArrowRight size={10} className="text-zinc-400" />
                       <span className="text-[12px] font-semibold" style={{ color: creditor?.color }}>{creditor?.name}</span>
-                      <span className="text-[13px] font-bold text-rose-600 dark:text-rose-400 tabular-nums ml-1">
+                      <span className="text-[13px] font-bold text-rose-600 tabular-nums ml-1">
                         {sett.currency === 'USD' ? '$' : 'S/'}{sett.amount.toFixed(2)}
                       </span>
                       <button type="button"
                         onClick={() => setSettlingIndex(settlingIndex === idx ? null : idx)}
-                        className="ml-1 h-6 px-2 rounded-lg bg-indigo-600 text-white text-[11px] font-semibold active:scale-95 transition">
+                        className="ml-1 h-6 px-2 rounded-lg text-white text-[11px] font-semibold active:scale-95 transition" style={{ background: '#4B32E6' }}>
                         Pagar
                       </button>
                     </div>
@@ -750,7 +745,7 @@ export default function ExpensesTab({
 
             {settlementHistory.length > 0 && (
               <button type="button" onClick={() => setShowSettlementHistory(!showSettlementHistory)}
-                className="w-full px-4 py-2.5 flex items-center gap-1.5 text-[12px] text-indigo-200 hover:text-white transition border-t border-white/10">
+                className="w-full px-4 py-2.5 flex items-center gap-1.5 text-[12px] text-zinc-700 transition border-t border-black/5">
                 <Check size={12} className="text-emerald-500" />
                 Liquidaciones anteriores ({settlementHistory.length})
                 <ChevronDown size={12} className={`ml-auto transition-transform ${showSettlementHistory ? 'rotate-180' : ''}`} />
