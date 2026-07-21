@@ -292,7 +292,7 @@ export default function ChatTab({ apartmentId, apartmentName, roommates, current
       <div
         ref={listRef}
         onScroll={handleScroll}
-        className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-1 pb-nav"
+        className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-1"
       >
         {/* Search results mode */}
         {filteredMessages !== null ? (
@@ -360,7 +360,7 @@ export default function ChatTab({ apartmentId, apartmentName, roommates, current
       )}
 
       {/* Composer */}
-      <div className="bg-white dark:bg-zinc-900 border-t border-zinc-100 dark:border-zinc-800 px-3 pt-2" style={{ paddingBottom: 'calc(68px + env(safe-area-inset-bottom))' }}>
+      <div className="bg-white dark:bg-zinc-900 border-t border-zinc-100 dark:border-zinc-800 px-3 pt-2" style={{ paddingBottom: 'calc(40px + env(safe-area-inset-bottom))' }}>
         {/* Editing banner */}
         {editingId && (
           <div className="flex items-center gap-2 mb-2 px-2 py-1.5 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl">
