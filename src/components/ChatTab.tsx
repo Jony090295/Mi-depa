@@ -203,15 +203,25 @@ export default function ChatTab({ apartmentId, apartmentName, roommates, current
     setTimeout(() => textareaRef.current?.focus(), 50);
   }
 
-  function copyText(msg: ChatMessage) {
-    navigator.clipboard.writeText(msg.text ?? '').catch(() => {});
+  async function copyText(msg: ChatMessage) {
+    const txt = msg.text ?? '';
+    try {
+      await navigator.clipboard.writeText(txt);
+    } catch {
+      // fallback for mobile browsers
+      const ta = document.createElement('textarea');
+      ta.value = txt;
+      ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
     setContextMenu(null);
   }
 
-  function handleLongPress(msg: ChatMessage, e: React.TouchEvent | React.MouseEvent) {
-    e.preventDefault();
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setContextMenu({ msg, x: rect.left, y: rect.top });
+  function handleLongPress(msg: ChatMessage) {
+    setContextMenu({ msg, x: 0, y: 0 });
   }
 
   async function handleImagePick(e: React.ChangeEvent<HTMLInputElement>) {
@@ -328,7 +338,7 @@ export default function ChatTab({ apartmentId, apartmentName, roommates, current
                     msg={msg}
                     isMine={msg.senderId === currentUserId}
                     msgRef={el => { msgRefs.current[msg.id] = el; }}
-                    onLongPress={handleLongPress}
+                    onLongPress={(msg) => handleLongPress(msg)}
                     onScrollToReply={scrollToMessage}
                     searchQuery={searchQuery}
                   />
@@ -437,14 +447,14 @@ function MessageBubble({ msg, isMine, msgRef, onLongPress, onScrollToReply, sear
   msg: ChatMessage;
   isMine: boolean;
   msgRef: (el: HTMLDivElement | null) => void;
-  onLongPress: (msg: ChatMessage, e: React.TouchEvent | React.MouseEvent) => void;
+  onLongPress: (msg: ChatMessage) => void;
   onScrollToReply: (id: string) => void;
   searchQuery: string;
 }) {
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  function onTouchStart(e: React.TouchEvent) {
-    longPressTimer.current = setTimeout(() => onLongPress(msg, e), 500);
+  function onTouchStart() {
+    longPressTimer.current = setTimeout(() => onLongPress(msg), 500);
   }
   function onTouchEnd() {
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
@@ -469,7 +479,8 @@ function MessageBubble({ msg, isMine, msgRef, onLongPress, onScrollToReply, sear
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
       onTouchCancel={onTouchEnd}
-      onContextMenu={e => { e.preventDefault(); onLongPress(msg, e); }}
+      onTouchMove={onTouchEnd}
+      onContextMenu={e => { e.preventDefault(); onLongPress(msg); }}
     >
       {/* Avatar */}
       {!isMine && (
