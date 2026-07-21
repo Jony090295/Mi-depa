@@ -208,14 +208,16 @@ export default function ChatTab({ apartmentId, apartmentName, roommates, current
     try {
       await navigator.clipboard.writeText(txt);
     } catch {
-      // fallback for mobile browsers
-      const ta = document.createElement('textarea');
-      ta.value = txt;
-      ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
-      document.body.appendChild(ta);
-      ta.focus(); ta.select();
+      // fallback for mobile browsers that block clipboard API
+      const el = document.createElement('textarea');
+      el.setAttribute('readonly', '');
+      el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;white-space:pre';
+      document.body.appendChild(el);
+      el.value = txt;
+      el.focus();
+      el.setSelectionRange(0, txt.length);
       document.execCommand('copy');
-      document.body.removeChild(ta);
+      document.body.removeChild(el);
     }
     setContextMenu(null);
   }
