@@ -82,6 +82,7 @@ export default function ChatTab({ apartmentId, apartmentName, roommates, current
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [showScrollDown, setShowScrollDown] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   // Listen for search toggle from parent header button
   useEffect(() => {
@@ -205,21 +206,18 @@ export default function ChatTab({ apartmentId, apartmentName, roommates, current
 
   async function copyText(msg: ChatMessage) {
     const txt = msg.text ?? '';
+    setContextMenu(null);
     try {
       await navigator.clipboard.writeText(txt);
+      showToast('Copiado');
     } catch {
-      // fallback for mobile browsers that block clipboard API
-      const el = document.createElement('textarea');
-      el.setAttribute('readonly', '');
-      el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;white-space:pre';
-      document.body.appendChild(el);
-      el.value = txt;
-      el.focus();
-      el.setSelectionRange(0, txt.length);
-      document.execCommand('copy');
-      document.body.removeChild(el);
+      showToast('No se pudo copiar');
     }
-    setContextMenu(null);
+  }
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2000);
   }
 
   function handleLongPress(msg: ChatMessage) {
@@ -413,6 +411,13 @@ export default function ChatTab({ apartmentId, apartmentName, roommates, current
           </button>
         </div>
       </div>
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[300] bg-zinc-800 text-white text-sm font-medium px-4 py-2 rounded-full shadow-lg pointer-events-none">
+          {toast}
+        </div>
+      )}
 
       {/* Context menu */}
       {contextMenu && (
