@@ -530,7 +530,7 @@ function MessageBubble({ msg, isMine, msgRef, onLongPress, onScrollToReply, sear
 
           {/* Text */}
           {msg.text && (
-            <p className="text-[14px] leading-relaxed whitespace-pre-wrap break-words">
+            <p className="text-[14px] leading-relaxed whitespace-pre-wrap break-words select-none">
               {searchQuery ? highlight(msg.text, searchQuery) : msg.text}
             </p>
           )}
