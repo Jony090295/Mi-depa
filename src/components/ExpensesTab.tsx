@@ -84,6 +84,8 @@ export default function ExpensesTab({
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [showRecurringPicker, setShowRecurringPicker] = useState(false);
   const [showPayerDropdown, setShowPayerDropdown] = useState(false);
+  const [payerDropdownPos, setPayerDropdownPos] = useState({ top: 0, left: 0 });
+  const payerBtnRef = useRef<HTMLButtonElement>(null);
   const [filterMacro, setFilterMacro] = useState<'todos' | 'hogar' | 'personal'>('todos');
   const [filterMonth, setFilterMonth] = useState<'mes' | 'todo'>('mes');
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -945,9 +947,14 @@ export default function ExpensesTab({
                   <div className="relative">
                     <button
                       type="button"
+                      ref={payerBtnRef}
                       id="expense-payer-select"
                       aria-label="Seleccionar pagador"
-                      onClick={() => setShowPayerDropdown(p => !p)}
+                      onClick={() => {
+                        const rect = payerBtnRef.current?.getBoundingClientRect();
+                        if (rect) setPayerDropdownPos({ top: rect.bottom + 4, left: rect.left + rect.width / 2 });
+                        setShowPayerDropdown(p => !p);
+                      }}
                       className="flex items-center gap-2 h-9 pl-2 pr-3 rounded-full border transition active:scale-95"
                       style={{ background: '#EEF2FF', borderColor: '#C7D2FE' }}
                     >
@@ -964,29 +971,32 @@ export default function ExpensesTab({
                     </button>
                     {showPayerDropdown && (
                       <>
-                      <div className="fixed inset-0 z-10" onClick={() => setShowPayerDropdown(false)} />
-                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-white rounded-2xl shadow-lg overflow-hidden z-20 min-w-[150px]" style={{ border: '1px solid rgba(80,80,120,0.10)' }}>
-                        {roommates.map(r => (
-                          <button
-                            key={r.id}
-                            type="button"
-                            onClick={() => {
-                              setPaidBy(r.id);
-                              if (macroCategory === 'personal') {
-                                const percs: Record<string, string> = {};
-                                roommates.forEach(rm => { percs[rm.id] = rm.id === r.id ? '100' : '0'; });
-                                setCustomPercentages(percs);
-                              }
-                              setShowPayerDropdown(false);
-                            }}
-                            className={`w-full flex items-center gap-2.5 px-4 py-2.5 transition hover:bg-indigo-50 ${paidBy === r.id ? 'bg-indigo-50' : ''}`}
-                          >
-                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0" style={{ backgroundColor: r.color }}>{r.name.charAt(0)}</div>
-                            <span className={`text-[14px] font-medium flex-1 text-left ${paidBy === r.id ? 'text-indigo-700' : 'text-gray-700'}`}>{r.name}</span>
-                            {paidBy === r.id && <Check size={14} className="text-indigo-600" />}
-                          </button>
-                        ))}
-                      </div>
+                        <div className="fixed inset-0 z-[90]" onClick={() => setShowPayerDropdown(false)} />
+                        <div
+                          className="fixed z-[100] bg-white rounded-2xl shadow-xl overflow-hidden min-w-[160px]"
+                          style={{ top: payerDropdownPos.top, left: payerDropdownPos.left, transform: 'translateX(-50%)', border: '1px solid rgba(80,80,120,0.10)' }}
+                        >
+                          {roommates.map(r => (
+                            <button
+                              key={r.id}
+                              type="button"
+                              onClick={() => {
+                                setPaidBy(r.id);
+                                if (macroCategory === 'personal') {
+                                  const percs: Record<string, string> = {};
+                                  roommates.forEach(rm => { percs[rm.id] = rm.id === r.id ? '100' : '0'; });
+                                  setCustomPercentages(percs);
+                                }
+                                setShowPayerDropdown(false);
+                              }}
+                              className={`w-full flex items-center gap-2.5 px-4 py-3 transition active:bg-indigo-50 ${paidBy === r.id ? 'bg-indigo-50' : ''}`}
+                            >
+                              <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0" style={{ backgroundColor: r.color }}>{r.name.charAt(0)}</div>
+                              <span className={`text-[14px] font-medium flex-1 text-left ${paidBy === r.id ? 'text-indigo-700' : 'text-gray-700'}`}>{r.name}</span>
+                              {paidBy === r.id && <Check size={14} className="text-indigo-600" />}
+                            </button>
+                          ))}
+                        </div>
                       </>
                     )}
                   </div>
