@@ -455,10 +455,13 @@ export default function ExpensesTab({
   }
 
   // Group all expenses by month for the history view (skip fake settlement expenses)
+  // Roommate ID of the currently logged-in user (paidBy uses roommate IDs, not auth IDs)
+  const currentRoommateId = roommates.find(r => r.userId === currentUserId)?.id ?? currentUserId;
+
   const filteredExpenses = expenses.filter(e => {
     if (e.title.startsWith('💵 Liquidación:')) return false;
-    // Exclude personal expenses from other users entirely (not visible, not in balances)
-    if (e.macroCategory === 'personal' && e.paidBy !== currentUserId) return false;
+    // Personal expenses are only visible to the roommate who paid them
+    if (e.macroCategory === 'personal' && e.paidBy !== currentRoommateId) return false;
     return true;
   });
   const groupedExpenses: { month: string; items: Expense[] }[] = [];
@@ -585,8 +588,8 @@ export default function ExpensesTab({
   const currentMonthPrefix = today.slice(0, 7);
 
   const visibleExpenses = filteredExpenses.filter(e => {
-    // Personal expenses are only visible to the person who paid them
-    if (e.macroCategory === 'personal' && e.paidBy !== currentUserId) return false;
+    // Personal expenses are only visible to the roommate who paid them
+    if (e.macroCategory === 'personal' && e.paidBy !== currentRoommateId) return false;
     if (filterMacro !== 'todos' && e.macroCategory !== filterMacro) return false;
     if (filterMonth === 'mes' && !(e.date || '').startsWith(currentMonthPrefix)) return false;
     return true;
