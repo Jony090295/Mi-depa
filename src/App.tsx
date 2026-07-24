@@ -1060,6 +1060,8 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
             onAddSettlement={handleAddSettlement}
             defaultSplitType={aptConfig?.defaultSplitType ?? 'equitativo'}
             defaultSplitPercentages={aptConfig?.defaultSplitPercentages ?? {}}
+            currentUserId={user.id}
+            currentRoommateId={roommates.find(r => r.userId === user.id)?.id}
           />
         )}
 
