@@ -963,6 +963,8 @@ export default function ExpensesTab({
                       <ChevronDown size={14} className="text-indigo-400" />
                     </button>
                     {showPayerDropdown && (
+                      <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowPayerDropdown(false)} />
                       <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-white rounded-2xl shadow-lg overflow-hidden z-20 min-w-[150px]" style={{ border: '1px solid rgba(80,80,120,0.10)' }}>
                         {roommates.map(r => (
                           <button
@@ -985,6 +987,7 @@ export default function ExpensesTab({
                           </button>
                         ))}
                       </div>
+                      </>
                     )}
                   </div>
                 </div>
