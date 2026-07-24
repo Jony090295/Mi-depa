@@ -12,6 +12,7 @@ interface Props {
   roommates: Roommate[];
   expenses: Expense[];
   rentExchangeRate: number;
+  currentRoommateId?: string;
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -106,7 +107,7 @@ function StableCategoryCard({ meta, avgMensual }: { meta: { label: string; color
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function Reportes({ bills, roommates, expenses, rentExchangeRate }: Props) {
+export default function Reportes({ bills, roommates, expenses, rentExchangeRate, currentRoommateId }: Props) {
   const rate = rentExchangeRate || 3.80;
   const [activeTab, setActiveTab] = useState<'resumen' | 'insights'>('resumen');
   const [periodo, setPeriodo] = useState<'1m' | '3m' | '6m' | 'todo'>('3m');
@@ -121,11 +122,13 @@ export default function Reportes({ bills, roommates, expenses, rentExchangeRate 
     return expenses.filter(e => {
       const d = new Date(e.date + 'T00:00:00');
       if (d < cutoff) return false;
+      // Hide personal expenses from other roommates
+      if (e.macroCategory === 'personal' && currentRoommateId && e.paidBy !== currentRoommateId) return false;
       if (filterType === 'hogar' && e.macroCategory !== 'hogar') return false;
       if (filterType === 'personal' && e.macroCategory !== 'personal') return false;
       return true;
     });
-  }, [expenses, cutoff, filterType, roommates]);
+  }, [expenses, cutoff, filterType, currentRoommateId]);
 
   // ── Previous period expenses (for trend) ──
   const prevExpenses = useMemo(() => {

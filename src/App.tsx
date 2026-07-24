@@ -738,7 +738,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
       <main className={`flex-1 w-full animate-slide-up ${activeTab === 'chat' ? 'flex flex-col overflow-hidden' : 'px-4 pt-5 pb-nav'}`}>
 
         {activeTab === 'projected_budget' && (
-          <ProjectedBudget bills={bills} roommates={roommates} expenses={expenses} rentExchangeRate={rentExchangeRate} />
+          <ProjectedBudget bills={bills} roommates={roommates} expenses={expenses} rentExchangeRate={rentExchangeRate} currentRoommateId={roommates.find(r => r.userId === user?.id)?.id} />
         )}
 
         {activeTab === 'budget' && (() => {
