@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Roommate, Expense, ExpenseCategory, SplitType, RecurrentBill, SettlementRecord, HOGAR_DEFAULT_CATEGORIES, PERSONAL_DEFAULT_CATEGORIES } from '../types';
 import { CATEGORY_LABELS, getCategoryLabel, inferCategoryFromName } from '../utils';
 import { calculateSettlements } from '../utils';
@@ -969,11 +970,11 @@ export default function ExpensesTab({
                       </span>
                       <ChevronDown size={14} className="text-indigo-400" />
                     </button>
-                    {showPayerDropdown && (
+                    {showPayerDropdown && createPortal(
                       <>
-                        <div className="fixed inset-0 z-[90]" onClick={() => setShowPayerDropdown(false)} />
+                        <div className="fixed inset-0 z-[500]" onClick={() => setShowPayerDropdown(false)} />
                         <div
-                          className="fixed z-[100] bg-white rounded-2xl shadow-xl overflow-hidden min-w-[160px]"
+                          className="fixed z-[501] bg-white rounded-2xl shadow-xl overflow-hidden min-w-[160px]"
                           style={{ top: payerDropdownPos.top, left: payerDropdownPos.left, transform: 'translateX(-50%)', border: '1px solid rgba(80,80,120,0.10)' }}
                         >
                           {roommates.map(r => (
@@ -997,7 +998,8 @@ export default function ExpensesTab({
                             </button>
                           ))}
                         </div>
-                      </>
+                      </>,
+                      document.body
                     )}
                   </div>
                 </div>
