@@ -25,6 +25,7 @@ interface ExpensesTabProps {
   onAddSettlement?: (record: SettlementRecord) => void;
   defaultSplitType?: SplitType;
   defaultSplitPercentages?: Record<string, number>;
+  currentUserId?: string;
 }
 
 export default function ExpensesTab({
@@ -47,6 +48,7 @@ export default function ExpensesTab({
   onAddSettlement,
   defaultSplitType = 'equitativo',
   defaultSplitPercentages = {},
+  currentUserId = '',
 }: ExpensesTabProps) {
   const resolvedAllRoommates = allRoommates || roommates;
   const [title, setTitle] = useState('');
@@ -453,7 +455,12 @@ export default function ExpensesTab({
   }
 
   // Group all expenses by month for the history view (skip fake settlement expenses)
-  const filteredExpenses = expenses.filter(e => !e.title.startsWith('💵 Liquidación:'));
+  const filteredExpenses = expenses.filter(e => {
+    if (e.title.startsWith('💵 Liquidación:')) return false;
+    // Exclude personal expenses from other users entirely (not visible, not in balances)
+    if (e.macroCategory === 'personal' && e.paidBy !== currentUserId) return false;
+    return true;
+  });
   const groupedExpenses: { month: string; items: Expense[] }[] = [];
   filteredExpenses.forEach((expense) => {
     const monthStr = getMonthYearStringFromDate(expense.date || '') || 'Sin periodo';
@@ -578,6 +585,8 @@ export default function ExpensesTab({
   const currentMonthPrefix = today.slice(0, 7);
 
   const visibleExpenses = filteredExpenses.filter(e => {
+    // Personal expenses are only visible to the person who paid them
+    if (e.macroCategory === 'personal' && e.paidBy !== currentUserId) return false;
     if (filterMacro !== 'todos' && e.macroCategory !== filterMacro) return false;
     if (filterMonth === 'mes' && !(e.date || '').startsWith(currentMonthPrefix)) return false;
     return true;
