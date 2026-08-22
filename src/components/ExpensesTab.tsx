@@ -475,6 +475,11 @@ export default function ExpensesTab({
     group.items.push(expense);
   });
 
+  // Sort items within each group by date descending
+  groupedExpenses.forEach(g => {
+    g.items.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  });
+
   // Sort groups chronologically descending
   groupedExpenses.sort((a, b) => {
     if (a.month === 'Sin periodo') return 1;
