@@ -6,21 +6,20 @@ import { calculateSettlements } from './utils';
 // Auth + Supabase
 import { useAuth } from './hooks/useAuth';
 import { useApartmentData } from './hooks/useApartmentData';
-import { useUnreadCount } from './hooks/useUnreadCount';
 import AuthScreen from './components/AuthScreen';
 import ApartmentSetupScreen from './components/ApartmentSetupScreen';
 
 // Components
 import ExpensesTab from './components/ExpensesTab';
 import RecurrentBillsTab from './components/RecurrentBillsTab';
-import ChatTab from './components/ChatTab';
+import BudgetLimitsTab, { loadLimits } from './components/BudgetLimitsTab';
 import CommunityTab from './components/CommunityTab';
 import ProjectedBudget from './components/ProjectedBudget';
 
 // Icons
 import {
-  Home, Split, Clock, MessageCircle, ShoppingCart, Users, BellRing, ChevronRight, Search,
-  Moon, Sun, Settings, Check, ArrowRight, Plus, Pencil, Trash2, TrendingUp, Loader, Copy, LogOut, Receipt,
+  Home, Split, Clock, ShoppingCart, Users, BellRing, ChevronRight, Search,
+  Moon, Sun, Settings, Check, ArrowRight, Plus, Pencil, Trash2, TrendingUp, Loader, Copy, LogOut, Receipt, Target, AlertTriangle,
 } from 'lucide-react';
 
 // ─── Auth shell ──────────────────────────────────────────────────────────────
@@ -86,10 +85,8 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     localStorage.setItem('depa_dark_mode', String(darkMode));
   }, [darkMode]);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'budget' | 'expenses' | 'bills' | 'chat' | 'directory' | 'forum' | 'projected_budget'>('budget');
+  const [activeTab, setActiveTab] = useState<'overview' | 'budget' | 'expenses' | 'bills' | 'limits' | 'directory' | 'forum' | 'projected_budget'>('budget');
   const [environment, setEnvironment] = useState<'depa' | 'comunidad'>('depa');
-
-  const { unreadCount } = useUnreadCount(data.apartmentId, user.id, activeTab === 'chat');
   const [globalAlert, setGlobalAlert] = useState<string | null>(null);
   const [prefilledBillId, setPrefilledBillId] = useState<string>('');
 
@@ -136,7 +133,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
   }, [variableReminders]);
 
   useEffect(() => {
-    if (environment === 'depa' && !['projected_budget', 'budget', 'expenses', 'chat'].includes(activeTab)) {
+    if (environment === 'depa' && !['projected_budget', 'budget', 'expenses', 'limits'].includes(activeTab)) {
       setActiveTab('budget');
     } else if (environment === 'comunidad' && !['directory', 'forum'].includes(activeTab)) {
       setActiveTab('forum');
@@ -643,13 +640,6 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     return sum + b.amount * rate;
   }, 0);
   const itemsMissingCount  = shoppingItems.filter(i => !i.checked).length;
-  const subtitle = (() => {
-    const names = roommates.map(r => r.name);
-    if (names.length === 0) return 'Chat del depa';
-    if (names.length === 1) return names[0];
-    if (names.length === 2) return `${names[0]} y ${names[1]}`;
-    return `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}`;
-  })();
   const homeSettlements    = calculateSettlements(expenses, roommates, settlementHistory);
   const pendingDebtsCount  = homeSettlements.length;
 
@@ -658,7 +648,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     bills:            { label: 'Recurrentes',   sub: `${pendingBillsCount} por pagar` },
     expenses:         { label: 'Gastos',          sub: 'Gastos compartidos' },
     projected_budget: { label: 'Reportes',       sub: 'Análisis de gastos' },
-    chat:             { label: 'Chat',             sub: subtitle },
+    limits:           { label: 'Límites',           sub: 'Presupuesto mensual' },
     forum:            { label: 'Comunidad',       sub: 'Red Vecinal' },
     directory:        { label: 'Directorio',      sub: 'Servicios de confianza' },
   };
@@ -668,7 +658,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     { id: 'budget',           icon: <Home size={20} />,        label: 'Inicio',      env: 'depa' as const },
     { id: 'projected_budget', icon: <TrendingUp size={20} />,  label: 'Reportes',    env: 'depa' as const },
     { id: 'expenses',         icon: <Receipt size={22} />,      label: 'Gastos',      env: 'depa' as const, primary: true },
-    { id: 'chat',             icon: <MessageCircle size={20} />, label: 'Chat',       env: 'depa' as const },
+    { id: 'limits',           icon: <Target size={20} />,        label: 'Límites',    env: 'depa' as const },
     { id: 'forum',            icon: <Users size={20} />,        label: 'Comunidad',   env: 'comunidad' as const },
   ];
 
@@ -705,19 +695,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
             </div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            {activeTab === 'chat' && (
-              <button
-                onClick={() => {
-                  // Tell ChatTab to open search — handled via a simple global event
-                  window.dispatchEvent(new CustomEvent('chat:toggleSearch'));
-                }}
-                className="w-10 h-10 flex items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 active:bg-zinc-100 dark:active:bg-zinc-800 transition-colors"
-                aria-label="Buscar"
-              >
-                <Search size={18} />
-              </button>
-            )}
-              <button
+            <button
               onClick={() => setDarkMode(!darkMode)}
               className="w-10 h-10 flex items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 active:bg-zinc-100 dark:active:bg-zinc-800 transition-colors"
               aria-label={darkMode ? 'Modo claro' : 'Modo oscuro'}
@@ -735,7 +713,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
         </div>
       </header>
 
-      <main className={`flex-1 w-full animate-slide-up ${activeTab === 'chat' ? 'flex flex-col overflow-hidden' : 'px-4 pt-5 pb-nav'}`}>
+      <main className="flex-1 w-full animate-slide-up px-4 pt-5 pb-nav">
 
         {activeTab === 'projected_budget' && (
           <ProjectedBudget bills={bills} roommates={roommates} expenses={expenses} rentExchangeRate={rentExchangeRate} currentRoommateId={roommates.find(r => r.userId === user?.id)?.id} />
@@ -1039,6 +1017,31 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
           );
         })()}
 
+        {activeTab === 'expenses' && (() => {
+          const _limits = loadLimits(data.apartmentId);
+          const _monthStart = new Date(); _monthStart.setDate(1); _monthStart.setHours(0,0,0,0);
+          const _monthExp = expenses.filter(e => e.date && new Date(e.date + 'T00:00:00') >= _monthStart);
+          const _spentHogar = _monthExp.filter(e => e.macroCategory === 'hogar').reduce((s, e) => s + e.amount * (e.currency === 'USD' ? (e.exchangeRate || rentExchangeRate) : 1), 0);
+          const _spentPersonal = _monthExp.filter(e => e.macroCategory === 'personal').reduce((s, e) => s + e.amount * (e.currency === 'USD' ? (e.exchangeRate || rentExchangeRate) : 1), 0);
+          const _catSpent: Record<string,number> = {};
+          _monthExp.forEach(e => { const c = e.category || 'otros'; _catSpent[c] = (_catSpent[c] ?? 0) + e.amount * (e.currency === 'USD' ? (e.exchangeRate || rentExchangeRate) : 1); });
+          const _alerts: string[] = [];
+          if (_limits.global_hogar && _spentHogar / _limits.global_hogar >= 0.8) _alerts.push(`Total Hogar al ${Math.round(_spentHogar / _limits.global_hogar * 100)}%`);
+          if (_limits.global_personal && _spentPersonal / _limits.global_personal >= 0.8) _alerts.push(`Total Personal al ${Math.round(_spentPersonal / _limits.global_personal * 100)}%`);
+          Object.entries(_catSpent).forEach(([cat, spent]) => {
+            if (_limits[cat] && spent / _limits[cat]! >= 0.8) _alerts.push(`${cat.charAt(0).toUpperCase() + cat.slice(1)} al ${Math.round(spent / _limits[cat]! * 100)}%`);
+          });
+          return _alerts.length > 0 ? (
+            <div className="mb-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3.5 flex items-start gap-2.5">
+              <AlertTriangle size={15} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[12px] font-bold text-amber-800 dark:text-amber-300 mb-0.5">Límites de gasto</p>
+                <p className="text-[11px] text-amber-700 dark:text-amber-400">{_alerts.join(' · ')}</p>
+              </div>
+            </div>
+          ) : null;
+        })()}
+
         {activeTab === 'expenses' && (
           <ExpensesTab
             roommates={roommates}
@@ -1065,13 +1068,13 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
           />
         )}
 
-        {activeTab === 'chat' && (
-          <ChatTab
+        {activeTab === 'limits' && (
+          <BudgetLimitsTab
             apartmentId={data.apartmentId}
-            apartmentName={apartmentName}
-            roommates={roommates}
-            currentUserId={user.id}
-            currentUserName={roommates.find(r => r.userId === user.id)?.name ?? 'Yo'}
+            expenses={expenses}
+            rentExchangeRate={rentExchangeRate}
+            customHogarCategories={customHogarCategories}
+            customPersonalCategories={customPersonalCategories}
           />
         )}
 
@@ -1124,11 +1127,6 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                     <span className={`transition-colors duration-150 ${
                       isActive ? 'text-zinc-900' : 'text-zinc-400'
                     }`}>{tab.icon}</span>
-                    {tab.id === 'chat' && unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1.5 min-w-[15px] h-[15px] rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center px-0.5 leading-none">
-                        {unreadCount > 99 ? '99+' : unreadCount}
-                      </span>
-                    )}
                   </div>
                 )}
                 <span className={`text-[10px] font-medium leading-none transition-colors duration-150 ${
