@@ -9,6 +9,7 @@ import { useApartmentData } from './hooks/useApartmentData';
 import AuthScreen from './components/AuthScreen';
 import ApartmentSetupScreen from './components/ApartmentSetupScreen';
 import ResetPasswordScreen from './components/ResetPasswordScreen';
+import InviteRoommatesModal from './components/InviteRoommatesModal';
 
 // Components
 import ExpensesTab from './components/ExpensesTab';
@@ -92,6 +93,19 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
   const [activeTab, setActiveTab] = useState<'overview' | 'budget' | 'expenses' | 'bills' | 'limits' | 'directory' | 'forum' | 'projected_budget'>('budget');
   const [environment, setEnvironment] = useState<'depa' | 'comunidad'>('depa');
   const [globalAlert, setGlobalAlert] = useState<string | null>(null);
+
+  // El setup deja esta bandera al terminar. Va en un efecto y no en el
+  // inicializador de useState porque AppMain ya está montado mientras se
+  // muestra el setup: el inicializador correría antes de que la bandera
+  // exista y no volvería a ejecutarse.
+  const [showInvite, setShowInvite] = useState(false);
+
+  useEffect(() => {
+    if (!onboardingComplete || !aptConfig?.inviteCode) return;
+    if (sessionStorage.getItem('showInviteAfterSetup') !== '1') return;
+    sessionStorage.removeItem('showInviteAfterSetup');
+    setShowInvite(true);
+  }, [onboardingComplete, aptConfig?.inviteCode]);
   const [prefilledBillId, setPrefilledBillId] = useState<string>('');
 
   // Home config form state (synced from aptConfig when it loads)
@@ -599,7 +613,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
   }
 
   if (!onboardingComplete && aptConfig) {
-    return <ApartmentSetupScreen user={user} onReady={reload} resumeAptId={aptConfig.id} resumeInviteCode={aptConfig.inviteCode} />;
+    return <ApartmentSetupScreen user={user} onReady={reload} resumeAptId={aptConfig.id} />;
   }
 
   // ── Derived stats ─────────────────────────────────────────────────────────
@@ -1064,6 +1078,14 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
         )}
 
       </main>
+
+      {showInvite && aptConfig?.inviteCode && (
+        <InviteRoommatesModal
+          inviteCode={aptConfig.inviteCode}
+          apartmentName={apartmentName || 'Tu depa'}
+          onClose={() => setShowInvite(false)}
+        />
+      )}
 
       <nav
         className="fixed bottom-0 left-0 right-0 z-50 flex justify-center pointer-events-none"

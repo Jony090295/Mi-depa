@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import {
-  Home, Users, ArrowRight, Loader, Copy, Check,
-  Link, UserPlus, Plus, Trash2, ChevronRight,
+  Home, Users, ArrowRight, Loader, Check,
+  UserPlus, Plus, Trash2, ChevronRight,
 } from 'lucide-react';
 
 interface Props {
@@ -11,7 +11,6 @@ interface Props {
   onReady: () => void;
   initialCode?: string;
   resumeAptId?: string;
-  resumeInviteCode?: string;
 }
 
 type Step = 'choose' | 'create' | 'roommates' | 'costs' | 'split' | 'join';
@@ -40,7 +39,7 @@ function StepDots({ current, total }: { current: number; total: number }) {
 const inputCls = 'mt-1 w-full h-12 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500';
 const labelCls = 'text-xs font-bold uppercase tracking-wide text-zinc-400';
 
-export default function ApartmentSetupScreen({ user, onReady, initialCode, resumeAptId, resumeInviteCode }: Props) {
+export default function ApartmentSetupScreen({ user, onReady, initialCode, resumeAptId }: Props) {
   const [step, setStep] = useState<Step>(resumeAptId ? 'roommates' : initialCode ? 'join' : 'choose');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -55,8 +54,6 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
 
   // Apartment created state
   const [aptId, setAptId] = useState(resumeAptId ?? '');
-  const [inviteLink, setInviteLink] = useState(resumeInviteCode ? `${window.location.origin}?join=${resumeInviteCode}` : '');
-  const [linkCopied, setLinkCopied] = useState(false);
 
   // Roommates step
   const [hasRoommates, setHasRoommates] = useState<boolean | null>(null);
@@ -151,7 +148,6 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
 
       setAptId(apt.id);
       setCreatorDbId(rmRow?.id ?? '');
-      setInviteLink(`${window.location.origin}?join=${apt.invite_code}`);
       setStep('roommates');
     } catch (err: any) {
       setError(err.message || 'Error al crear el depa.');
@@ -170,12 +166,6 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
 
   const updateRoommate = (tempId: string, field: keyof RoommateEntry, value: string) => {
     setRoommates(prev => prev.map(r => r.tempId === tempId ? { ...r, [field]: value } : r));
-  };
-
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(inviteLink);
-    setLinkCopied(true);
-    setTimeout(() => setLinkCopied(false), 2500);
   };
 
   const handleSaveRoommates = async () => {
@@ -260,6 +250,12 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
       }
 
       await supabase.from('apartments').update({ onboarding_complete: true }).eq('id', aptId);
+
+      // El link de invitación ya no se muestra durante el setup — se pide
+      // aquí para que la app lo ofrezca en un popup una vez adentro, cuando
+      // el usuario ya no siente que tiene que abandonar el registro.
+      if (hasRoommates) sessionStorage.setItem('showInviteAfterSetup', '1');
+
       onReady();
     } catch (err: any) {
       setError(err.message || 'Error al guardar.');
@@ -479,28 +475,19 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
             </div>
           )}
 
-          {/* Invite link */}
           {(hasRoommates === true || hasRoommates === false) && (
             <>
               {hasRoommates && (
-                <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-2xl p-4 mb-4">
-                  <p className="text-xs font-bold text-zinc-400 uppercase tracking-wide mb-2">Link de invitación</p>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Link size={13} className="text-zinc-400 shrink-0" />
-                    <p className="text-[11px] text-zinc-400 truncate flex-1">{inviteLink}</p>
-                  </div>
-                  <button onClick={handleCopyLink}
-                    className="w-full h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 text-sm font-semibold flex items-center justify-center gap-2 transition hover:bg-indigo-100">
-                    {linkCopied ? <><Check size={14} /> Copiado</> : <><Copy size={14} /> Copiar link</>}
-                  </button>
-                </div>
+                <p className="text-[12px] text-zinc-400 text-center mb-4 leading-relaxed">
+                  Al terminar te damos el link para invitarlos.
+                </p>
               )}
 
               {error && <p className="text-rose-500 text-sm font-medium mb-3">{error}</p>}
 
               <button onClick={handleSaveRoommates} disabled={loading}
                 className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold text-sm rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2">
-                {loading ? <Loader size={18} className="animate-spin" /> : <>Invitar después <ArrowRight size={16} /></>}
+                {loading ? <Loader size={18} className="animate-spin" /> : <>Siguiente <ArrowRight size={16} /></>}
               </button>
               {!resumeAptId && (
                 <button type="button" onClick={() => setStep('create')}
