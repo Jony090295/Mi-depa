@@ -8,6 +8,7 @@ import { useAuth } from './hooks/useAuth';
 import { useApartmentData } from './hooks/useApartmentData';
 import AuthScreen from './components/AuthScreen';
 import ApartmentSetupScreen from './components/ApartmentSetupScreen';
+import ResetPasswordScreen from './components/ResetPasswordScreen';
 
 // Components
 import ExpensesTab from './components/ExpensesTab';
@@ -25,7 +26,7 @@ import {
 // ─── Auth shell ──────────────────────────────────────────────────────────────
 
 export default function AppShell() {
-  const { session, user, loading } = useAuth();
+  const { session, user, loading, isRecovery, clearRecovery } = useAuth();
 
   // Persist join code across auth redirects
   const urlJoinCode = new URLSearchParams(window.location.search).get('join');
@@ -39,6 +40,10 @@ export default function AppShell() {
       </div>
     );
   }
+
+  // A recovery link signs the user in, so this must come before the session check
+  // or they'd land in the app without ever setting a new password.
+  if (isRecovery) return <ResetPasswordScreen onDone={clearRecovery} />;
 
   if (!session || !user) return <AuthScreen joinCode={joinCode || undefined} />;
 
