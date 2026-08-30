@@ -9,7 +9,7 @@ import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import {
   Roommate, Expense, RecurrentBill, RecurrentBillHistory,
-  ShoppingItem, ForumPost, ForumReply, SettlementRecord, TrustedService,
+  ForumPost, ForumReply, SettlementRecord, TrustedService,
 } from '../types';
 
 // ─── DB → App type mappers ───────────────────────────────────────────────────
@@ -55,10 +55,6 @@ function rowToHistory(r: any): RecurrentBillHistory {
   };
 }
 
-function rowToShoppingItem(r: any): ShoppingItem {
-  return { id: r.id, name: r.name, quantity: r.quantity, checked: r.checked, addedBy: r.added_by ?? 'Yo' };
-}
-
 function rowToPost(r: any, replies: any[]): ForumPost {
   return {
     id: r.id, author: r.author, title: r.title, content: r.content,
@@ -100,7 +96,6 @@ export function useApartmentData(user: User) {
   const [expenses, setExpenses]           = useState<Expense[]>([]);
   const [bills, setBills]                 = useState<RecurrentBill[]>([]);
   const [billHistory, setBillHistory]     = useState<RecurrentBillHistory[]>([]);
-  const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>([]);
   const [posts, setPosts]                 = useState<ForumPost[]>([]);
   const [trustedServices, setTrustedServices] = useState<TrustedService[]>([]);
   const [settlementHistory, setSettlementHistory] = useState<SettlementRecord[]>([]);
@@ -156,7 +151,6 @@ export function useApartmentData(user: User) {
         { data: expRows },
         { data: billRows },
         { data: histRows },
-        { data: shopRows },
         { data: settleRows },
         { data: postRows },
         { data: replyRows },
@@ -166,7 +160,6 @@ export function useApartmentData(user: User) {
         supabase.from('expenses').select('*').eq('apartment_id', aptId).order('created_at', { ascending: false }),
         supabase.from('bills').select('*').eq('apartment_id', aptId).order('created_at'),
         supabase.from('bill_history').select('*').eq('apartment_id', aptId).order('created_at', { ascending: false }),
-        supabase.from('shopping_items').select('*').eq('apartment_id', aptId).order('created_at', { ascending: false }),
         supabase.from('settlements').select('*').eq('apartment_id', aptId).order('created_at', { ascending: false }),
         supabase.from('forum_posts').select('*').order('created_at', { ascending: false }),
         supabase.from('forum_replies').select('*').order('created_at'),
@@ -179,7 +172,6 @@ export function useApartmentData(user: User) {
       setExpenses((expRows ?? []).map(rowToExpense));
       setBills((billRows ?? []).map(rowToBill));
       setBillHistory((histRows ?? []).map(rowToHistory));
-      setShoppingItems((shopRows ?? []).map(rowToShoppingItem));
       setSettlementHistory((settleRows ?? []).map(rowToSettlement));
       setPosts((postRows ?? []).map(p => rowToPost(p, replyRows ?? [])));
       setTrustedServices((svcRows ?? []).map((r: any) => ({
@@ -339,43 +331,6 @@ export function useApartmentData(user: User) {
     setBillHistory(prev => prev.map(h => h.id === entry.id ? entry : h));
   };
 
-  // ── Shopping handlers ─────────────────────────────────────────────────────
-
-  const addShoppingItem = async (item: Omit<ShoppingItem, 'id'>) => {
-    if (!apartmentId) return;
-    const id = crypto.randomUUID();
-    await supabase.from('shopping_items').insert({
-      id, apartment_id: apartmentId,
-      name: item.name, quantity: item.quantity,
-      checked: item.checked, added_by: item.addedBy,
-    });
-    setShoppingItems(prev => [{ ...item, id }, ...prev]);
-  };
-
-  const toggleShoppingItem = async (id: string) => {
-    const item = shoppingItems.find(i => i.id === id);
-    if (!item) return;
-    await supabase.from('shopping_items').update({ checked: !item.checked }).eq('id', id);
-    setShoppingItems(prev => prev.map(i => i.id === id ? { ...i, checked: !i.checked } : i));
-  };
-
-  const removeShoppingItem = async (id: string) => {
-    await supabase.from('shopping_items').delete().eq('id', id);
-    setShoppingItems(prev => prev.filter(i => i.id !== id));
-  };
-
-  const updateShoppingItem = async (id: string, updates: Partial<ShoppingItem>) => {
-    await supabase.from('shopping_items').update(updates).eq('id', id);
-    setShoppingItems(prev => prev.map(i => i.id === id ? { ...i, ...updates } : i));
-  };
-
-  const clearShoppingList = async () => {
-    if (!apartmentId) return;
-    const checkedIds = shoppingItems.filter(i => i.checked).map(i => i.id);
-    if (checkedIds.length) await supabase.from('shopping_items').delete().in('id', checkedIds);
-    setShoppingItems(prev => prev.filter(i => !i.checked));
-  };
-
   // ── Settlement handlers ───────────────────────────────────────────────────
 
   const addSettlement = async (record: SettlementRecord) => {
@@ -473,7 +428,6 @@ export function useApartmentData(user: User) {
     expenses,
     bills,
     billHistory,
-    shoppingItems,
     posts,
     trustedServices,
     settlementHistory,
@@ -487,7 +441,6 @@ export function useApartmentData(user: User) {
     addExpense, updateExpense, removeExpense,
     addBill, updateBill, removeBill,
     addBillHistory, removeBillHistory, updateBillHistoryEntry,
-    addShoppingItem, toggleShoppingItem, removeShoppingItem, updateShoppingItem, clearShoppingList,
     addSettlement,
     customHogarCategories, customPersonalCategories,
     addHogarCategory, addPersonalCategory,

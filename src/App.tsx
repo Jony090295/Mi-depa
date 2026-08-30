@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from '@supabase/supabase-js';
-import { Roommate, Expense, RecurrentBill, RecurrentBillHistory, ShoppingItem, ForumPost, ForumReply, SettlementRecord, VariableReminder } from './types';
+import { Roommate, Expense, RecurrentBill, RecurrentBillHistory, ForumPost, ForumReply, SettlementRecord, VariableReminder } from './types';
 import { calculateSettlements } from './utils';
 
 // Auth + Supabase
@@ -19,7 +19,7 @@ import ProjectedBudget from './components/ProjectedBudget';
 
 // Icons
 import {
-  Home, Split, Clock, ShoppingCart, Users, BellRing, ChevronRight, Search,
+  Home, Split, Clock, Users, BellRing, ChevronRight, Search,
   Moon, Sun, Settings, Check, ArrowRight, Plus, Pencil, Trash2, TrendingUp, Loader, Copy, LogOut, Receipt, Target, AlertTriangle,
 } from 'lucide-react';
 
@@ -58,13 +58,12 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
   const {
     loading: dataLoading, noApartment, onboardingComplete, reload,
     aptConfig, roommates, expenses, bills, billHistory,
-    shoppingItems, posts, trustedServices, settlementHistory,
+    posts, trustedServices, settlementHistory,
     setExpenses, setBills, setBillHistory,
     updateApartmentConfig, updateRoommates,
     addExpense, updateExpense, removeExpense,
     addBill, updateBill, removeBill,
     addBillHistory, removeBillHistory, updateBillHistoryEntry,
-    addShoppingItem, toggleShoppingItem, removeShoppingItem, updateShoppingItem, clearShoppingList,
     customHogarCategories, customPersonalCategories,
     addHogarCategory, addPersonalCategory,
     addSettlement, addPost, updatePost, deletePost, addReply,
@@ -561,26 +560,6 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     setTimeout(() => setGlobalAlert(null), 8000);
   };
 
-  const handleAddShoppingItem = async (item: Omit<ShoppingItem, 'id'>) => {
-    await addShoppingItem(item);
-  };
-
-  const handleToggleShoppingItem = async (id: string) => {
-    await toggleShoppingItem(id);
-  };
-
-  const handleRemoveShoppingItem = async (id: string) => {
-    await removeShoppingItem(id);
-  };
-
-  const handleClearShoppingList = async () => {
-    await clearShoppingList();
-  };
-
-  const handleUpdateShoppingItem = async (id: string, updates: Partial<ShoppingItem>) => {
-    await updateShoppingItem(id, updates);
-  };
-
   const handleAddSettlement = async (record: SettlementRecord) => {
     await addSettlement(record);
   };
@@ -644,7 +623,6 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     const rate = b.currency === 'USD' ? (b.exchangeRate || 3.80) : 1;
     return sum + b.amount * rate;
   }, 0);
-  const itemsMissingCount  = shoppingItems.filter(i => !i.checked).length;
   const homeSettlements    = calculateSettlements(expenses, roommates, settlementHistory);
   const pendingDebtsCount  = homeSettlements.length;
 
@@ -753,23 +731,9 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
               </button>
 
               {/* Pendientes */}
-              {(itemsMissingCount > 0 || pendingDebtsCount > 0) && (
+              {pendingDebtsCount > 0 && (
                 <div className="space-y-2">
                   <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 px-1">Pendiente</p>
-
-                  {itemsMissingCount > 0 && (
-                    <button onClick={() => setActiveTab('shopping')}
-                      className="w-full flex items-center gap-3 px-4 py-3.5 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 active:scale-[0.98] transition text-left">
-                      <div className="w-9 h-9 rounded-2xl bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center shrink-0">
-                        <ShoppingCart size={16} className="text-amber-500" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[14px] font-semibold text-zinc-900 dark:text-zinc-100">{itemsMissingCount} {itemsMissingCount === 1 ? 'item' : 'items'} en lista de compras</p>
-                        <p className="text-[12px] text-zinc-400 mt-0.5">Lista pendiente de completar</p>
-                      </div>
-                      <ChevronRight size={16} className="text-zinc-300 dark:text-zinc-600 shrink-0" />
-                    </button>
-                  )}
 
                   {pendingDebtsCount > 0 && (
                     <button onClick={() => setActiveTab('expenses')}
