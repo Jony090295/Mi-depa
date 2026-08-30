@@ -9,7 +9,6 @@ import { useApartmentData } from './hooks/useApartmentData';
 import AuthScreen from './components/AuthScreen';
 import ApartmentSetupScreen from './components/ApartmentSetupScreen';
 import ResetPasswordScreen from './components/ResetPasswordScreen';
-import MigrateReceiptsBanner from './components/MigrateReceiptsBanner';
 
 // Components
 import ExpensesTab from './components/ExpensesTab';
@@ -1011,16 +1010,6 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
             </div>
           ) : null;
         })()}
-
-        {activeTab === 'expenses' && (
-          <MigrateReceiptsBanner
-            expenses={expenses}
-            apartmentId={data.apartmentId}
-            onMigrated={(id, path) =>
-              setExpenses(prev => prev.map(e => e.id === id ? { ...e, receiptImage: path } : e))
-            }
-          />
-        )}
 
         {activeTab === 'expenses' && (
           <ExpensesTab
