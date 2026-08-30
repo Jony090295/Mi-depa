@@ -4,6 +4,36 @@ import { Home, Mail, Lock, Eye, EyeOff, ArrowRight, Loader } from 'lucide-react'
 
 type Mode = 'login' | 'signup' | 'forgot';
 
+const MIN_LENGTH = 12;
+
+/**
+ * Supabase devuelve los errores de auth en inglés, y el de requisitos de
+ * contraseña vuelca los cuatro sets de caracteres completos. Traducirlos
+ * a algo accionable, porque es lo primero que ve alguien que se registra.
+ */
+function friendlyAuthError(raw: string): string {
+  const m = raw ?? '';
+
+  if (/invalid login credentials/i.test(m))
+    return 'Email o contraseña incorrectos.';
+  if (/user already registered|already been registered/i.test(m))
+    return 'Ya tienes una cuenta con este correo. Inicia sesión.';
+  if (/should contain at least one character/i.test(m))
+    return 'La contraseña necesita mayúsculas, minúsculas, un número y un símbolo.';
+  if (/should be at least|password.*too short/i.test(m))
+    return `La contraseña debe tener al menos ${MIN_LENGTH} caracteres.`;
+  if (/unable to validate email|invalid format/i.test(m))
+    return 'Ese correo no parece válido.';
+  if (/email not confirmed/i.test(m))
+    return 'Confirma tu correo antes de iniciar sesión. Revisa tu bandeja.';
+  if (/only request this after|rate limit|too many requests/i.test(m))
+    return 'Demasiados intentos. Espera un momento y vuelve a probar.';
+  if (/weak password/i.test(m))
+    return 'Esa contraseña es muy fácil de adivinar. Prueba con una más larga.';
+
+  return m || 'Ocurrió un error. Intenta de nuevo.';
+}
+
 export default function AuthScreen({ joinCode }: { joinCode?: string }) {
   const [mode, setMode]         = useState<Mode>(joinCode ? 'signup' : 'login');
   const [email, setEmail]       = useState('');
@@ -36,13 +66,7 @@ export default function AuthScreen({ joinCode }: { joinCode?: string }) {
         if (error) throw error;
       }
     } catch (err: any) {
-      setError(
-        err.message === 'Invalid login credentials'
-          ? 'Email o contraseña incorrectos.'
-          : err.message === 'User already registered'
-          ? 'Ya tienes una cuenta. Inicia sesión.'
-          : err.message || 'Ocurrió un error. Intenta de nuevo.'
-      );
+      setError(friendlyAuthError(err.message));
     } finally {
       setLoading(false);
     }
@@ -162,10 +186,10 @@ export default function AuthScreen({ joinCode }: { joinCode?: string }) {
               <input
                 type={showPw ? 'text' : 'password'}
                 required
-                minLength={mode === 'signup' ? 12 : 6}
+                minLength={mode === 'signup' ? MIN_LENGTH : 6}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                placeholder={mode === 'signup' ? 'Contraseña (mín. 12 caracteres)' : 'Contraseña'}
+                placeholder={mode === 'signup' ? `Contraseña (mín. ${MIN_LENGTH} caracteres)` : 'Contraseña'}
                 className="w-full h-12 pl-10 pr-12 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
               <button
