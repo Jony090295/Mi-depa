@@ -221,6 +221,24 @@ CREATE TABLE trusted_services (
 -- Es el motor de casi todas las políticas. NO le quites EXECUTE al rol
 -- `authenticated`: las políticas se evalúan con los permisos de quien
 -- consulta, así que revocarlo rompe la app entera.
+--
+-- ── Sobre las advertencias del Security Advisor (revisado 2026-08-30) ──
+--
+-- El linter marca is_member, my_roommate_id y join_apartment con
+-- "SECURITY DEFINER function executable". Se revisaron una por una y se
+-- decidió NO actuar. El razonamiento:
+--
+--   * is_member y my_roommate_id solo devuelven datos del propio
+--     llamante. Verificado contra producción: a un anónimo le responden
+--     `false` y `null`. No hay filtración posible.
+--   * join_apartment DEBE ser llamable por usuarios autenticados — es la
+--     única puerta para unirse a un depa. Ya está revocada para `anon`.
+--   * La sugerencia del linter de revocar EXECUTE a `authenticated`
+--     rompería todas las políticas que llaman a estas funciones.
+--
+-- El arreglo "correcto" (mover las funciones a un esquema privado fuera
+-- de la API) obligaría a reescribir todas las políticas de abajo y aun
+-- así dejaría la advertencia de join_apartment. No compensa.
 CREATE OR REPLACE FUNCTION is_member(apt_id uuid)
 RETURNS boolean LANGUAGE sql SECURITY DEFINER AS $$
   SELECT EXISTS (
