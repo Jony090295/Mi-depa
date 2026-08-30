@@ -273,6 +273,28 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
     setError('');
     setLoading(true);
     try {
+      // Preferred path: server-side join that validates the invite code.
+      // Falls back to the legacy client-side flow if the function isn't deployed yet.
+      const { error: rpcErr } = await supabase.rpc('join_apartment', {
+        code: inviteCode.trim().toUpperCase(),
+        display_name: joinName.trim(),
+      });
+
+      if (!rpcErr) {
+        sessionStorage.removeItem('pendingJoinCode');
+        onReady();
+        return;
+      }
+
+      const fnMissing = rpcErr.code === 'PGRST202' || /function .*join_apartment/i.test(rpcErr.message ?? '');
+      if (!fnMissing) {
+        throw new Error(
+          /c[oó]digo inv[aá]lido/i.test(rpcErr.message ?? '')
+            ? 'Código inválido. Verifica con tu compañero.'
+            : rpcErr.message
+        );
+      }
+
       const { data: apt, error: aptErr } = await supabase
         .from('apartments')
         .select('id')
