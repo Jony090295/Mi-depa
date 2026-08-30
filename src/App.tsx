@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from '@supabase/supabase-js';
-import { Roommate, Expense, RecurrentBill, RecurrentBillHistory, ForumPost, ForumReply, SettlementRecord, VariableReminder } from './types';
+import { Roommate, Expense, RecurrentBill, RecurrentBillHistory, ForumPost, ForumReply, SettlementRecord, VariableReminder, HOGAR_DEFAULT_CATEGORIES, PERSONAL_DEFAULT_CATEGORIES } from './types';
 import { calculateSettlements } from './utils';
 
 // Auth + Supabase
@@ -10,6 +10,7 @@ import AuthScreen from './components/AuthScreen';
 import ApartmentSetupScreen from './components/ApartmentSetupScreen';
 import ResetPasswordScreen from './components/ResetPasswordScreen';
 import InviteRoommatesModal from './components/InviteRoommatesModal';
+import CategoryPicker from './components/CategoryPicker';
 
 // Components
 import ExpensesTab from './components/ExpensesTab';
@@ -65,7 +66,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     addExpense, updateExpense, removeExpense,
     addBill, updateBill, removeBill,
     addBillHistory, removeBillHistory, updateBillHistoryEntry,
-    customHogarCategories, customPersonalCategories,
+    hogarCategories, personalCategories, setHogarCategories, setPersonalCategories,
     addHogarCategory, addPersonalCategory,
     addSettlement, addPost, updatePost, deletePost, addReply,
     addTrustedService, updateTrustedService, deleteTrustedService,
@@ -637,6 +638,13 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     const rate = b.currency === 'USD' ? (b.exchangeRate || 3.80) : 1;
     return sum + b.amount * rate;
   }, 0);
+  const usedHogarCategories: string[] = Array.from(new Set(
+    expenses.filter(e => e.macroCategory !== 'personal').map(e => e.category).filter((c): c is string => !!c)
+  ));
+  const usedPersonalCategories: string[] = Array.from(new Set(
+    expenses.filter(e => e.macroCategory === 'personal').map(e => e.category).filter((c): c is string => !!c)
+  ));
+
   const homeSettlements    = calculateSettlements(expenses, roommates, settlementHistory);
   const pendingDebtsCount  = homeSettlements.length;
 
@@ -952,6 +960,29 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                         <p className="text-[11px] text-zinc-400 mt-1">Tu roommate abre el link, crea su cuenta y queda unido al depa.</p>
                       </div>
                     )}
+
+                    {/* Categorías */}
+                    <div>
+                      <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide">Categorías del hogar</label>
+                      <p className="text-[11px] text-zinc-400 mt-0.5 mb-2">Compartidas con todo el depa.</p>
+                      <CategoryPicker
+                        suggestions={HOGAR_DEFAULT_CATEGORIES}
+                        value={hogarCategories}
+                        onChange={setHogarCategories}
+                        locked={usedHogarCategories}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide">Mis categorías personales</label>
+                      <p className="text-[11px] text-zinc-400 mt-0.5 mb-2">Solo tuyas. Cada roommate tiene las suyas.</p>
+                      <CategoryPicker
+                        suggestions={PERSONAL_DEFAULT_CATEGORIES}
+                        value={personalCategories}
+                        onChange={setPersonalCategories}
+                        locked={usedPersonalCategories}
+                      />
+                    </div>
                     {/* Default split */}
                     <div>
                       <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide">Cómo dividen los gastos por defecto</label>
@@ -1036,8 +1067,8 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
             onNavigateTab={setActiveTab}
             bills={bills}
             onAddBill={handleAddBill}
-            customHogarCategories={customHogarCategories}
-            customPersonalCategories={customPersonalCategories}
+            hogarCategories={hogarCategories}
+            personalCategories={personalCategories}
             onAddHogarCategory={addHogarCategory}
             onAddPersonalCategory={addPersonalCategory}
             prefilledBillId={prefilledBillId}
@@ -1057,8 +1088,8 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
             apartmentId={data.apartmentId}
             expenses={expenses}
             rentExchangeRate={rentExchangeRate}
-            customHogarCategories={customHogarCategories}
-            customPersonalCategories={customPersonalCategories}
+            hogarCategories={hogarCategories}
+            personalCategories={personalCategories}
           />
         )}
 

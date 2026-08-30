@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Roommate, Expense, ExpenseCategory, SplitType, RecurrentBill, SettlementRecord, HOGAR_DEFAULT_CATEGORIES, PERSONAL_DEFAULT_CATEGORIES } from '../types';
+import { Roommate, Expense, ExpenseCategory, SplitType, RecurrentBill, SettlementRecord } from '../types';
 import { CATEGORY_LABELS, getCategoryLabel, inferCategoryFromName } from '../utils';
 import { uploadReceipt, useReceiptUrl } from '../lib/receipts';
 import { calculateSettlements } from '../utils';
@@ -16,8 +16,8 @@ interface ExpensesTabProps {
   onNavigateTab?: (tab: string) => void;
   bills?: RecurrentBill[];
   onAddBill?: (bill: RecurrentBill) => void;
-  customHogarCategories?: string[];
-  customPersonalCategories?: string[];
+  hogarCategories?: string[];
+  personalCategories?: string[];
   onAddHogarCategory?: (name: string) => void;
   onAddPersonalCategory?: (name: string) => void;
   prefilledBillId?: string;
@@ -41,8 +41,8 @@ export default function ExpensesTab({
   onNavigateTab,
   bills = [],
   onAddBill,
-  customHogarCategories = [],
-  customPersonalCategories = [],
+  hogarCategories = [],
+  personalCategories = [],
   onAddHogarCategory,
   onAddPersonalCategory,
   prefilledBillId,
@@ -1169,13 +1169,13 @@ export default function ExpensesTab({
                           setShowNewCatInput(false);
                           setNewCatName('');
                           if (val === 'personal') {
-                            setCategory(PERSONAL_DEFAULT_CATEGORIES[0]);
+                            setCategory(personalCategories[0] ?? 'otros');
                             setSplitType('porcentaje');
                             const percs: Record<string, string> = {};
                             roommates.forEach(r => { percs[r.id] = r.id === paidBy ? '100' : '0'; });
                             setCustomPercentages(percs);
                           } else {
-                            setCategory(HOGAR_DEFAULT_CATEGORIES[0]);
+                            setCategory(hogarCategories[0] ?? 'otros');
                             setSplitType(defaultSplitType);
                             const dp = Object.keys(defaultSplitPercentages).length > 0
                               ? Object.fromEntries(Object.entries(defaultSplitPercentages).map(([k, v]) => [k, String(v)]))
@@ -1322,9 +1322,7 @@ export default function ExpensesTab({
                   <label className="text-[11px] font-semibold uppercase tracking-wide px-1" style={{ color: '#8D90A5' }}>Categoría</label>
                   <div className="flex gap-2 flex-wrap">
                     {(() => {
-                      const allCats = (macroCategory === 'hogar'
-                        ? [...HOGAR_DEFAULT_CATEGORIES, ...customHogarCategories]
-                        : [...PERSONAL_DEFAULT_CATEGORIES, ...customPersonalCategories]) as string[];
+                      const allCats = (macroCategory === 'hogar' ? hogarCategories : personalCategories) as string[];
                       const selectedIdx = allCats.indexOf(category);
                       const VISIBLE = 4;
                       let visibleCats: string[];

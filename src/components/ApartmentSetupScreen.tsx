@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { HOGAR_DEFAULT_CATEGORIES } from '../types';
+import CategoryPicker from './CategoryPicker';
 import {
   Home, Users, ArrowRight, Loader, Check,
   UserPlus, Plus, Trash2, ChevronRight,
@@ -13,7 +15,7 @@ interface Props {
   resumeAptId?: string;
 }
 
-type Step = 'choose' | 'create' | 'roommates' | 'costs' | 'split' | 'join';
+type Step = 'choose' | 'create' | 'roommates' | 'costs' | 'categories' | 'split' | 'join';
 type SplitType = 'equitativo' | 'proporcional' | 'porcentaje';
 
 interface RoommateEntry {
@@ -110,6 +112,9 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
   // Costs step
   const [rent, setRent] = useState('');
   const [maintenance, setMaintenance] = useState('');
+
+  // Categories step — arranca con todas las sugerencias marcadas
+  const [hogarCats, setHogarCats] = useState<string[]>([...HOGAR_DEFAULT_CATEGORIES]);
 
   // Split step
   const [splitType, setSplitType] = useState<SplitType>('equitativo');
@@ -208,6 +213,21 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
     }
   };
 
+  const handleSaveCategories = async () => {
+    if (hogarCats.length === 0) { setError('Elige al menos una categoría.'); return; }
+    setLoading(true);
+    setError('');
+    try {
+      const list = hogarCats.includes('otros') ? hogarCats : [...hogarCats, 'otros'];
+      await supabase.from('apartments').update({ hogar_categories: list }).eq('id', aptId);
+      setStep('split');
+    } catch (err: any) {
+      setError(err.message || 'Error al guardar.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSaveCosts = async () => {
     setLoading(true);
     setError('');
@@ -217,7 +237,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
         rent_currency: 'USD',
         maintenance: parseFloat(maintenance) || 0,
       }).eq('id', aptId);
-      setStep('split');
+      setStep('categories');
     } catch (err: any) {
       setError(err.message || 'Error al guardar.');
     } finally {
@@ -384,7 +404,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
     return (
       <div className="min-h-dvh bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center p-6">
         <div className="w-full max-w-sm">
-          <StepDots current={0} total={4} />
+          <StepDots current={0} total={5} />
           <div className="text-center mb-6">
             <h2 className="text-xl font-black text-zinc-900 dark:text-zinc-100">Crear mi depa</h2>
             <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-1">Cuéntanos un poco sobre tu depa.</p>
@@ -422,7 +442,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
     return (
       <div className="min-h-dvh bg-zinc-50 dark:bg-zinc-950 flex items-start justify-center p-6 pt-10">
         <div className="w-full max-w-sm">
-          <StepDots current={1} total={4} />
+          <StepDots current={1} total={5} />
           <div className="text-center mb-6">
             <div className="w-14 h-14 bg-indigo-100 dark:bg-indigo-950/40 rounded-3xl flex items-center justify-center mx-auto mb-4">
               <UserPlus size={24} className="text-indigo-600" />
@@ -500,12 +520,49 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
     );
   }
 
+  // ── Categories ────────────────────────────────────────────────────
+  if (step === 'categories') {
+    return (
+      <div className="min-h-dvh bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center p-6">
+        <div className="w-full max-w-sm">
+          <StepDots current={3} total={5} />
+          <div className="text-center mb-6">
+            <h2 className="text-xl font-black text-zinc-900 dark:text-zinc-100">¿En qué gastan?</h2>
+            <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-1">
+              Quita las que no uses y agrega las tuyas.
+            </p>
+          </div>
+
+          <CategoryPicker
+            suggestions={HOGAR_DEFAULT_CATEGORIES}
+            value={hogarCats}
+            onChange={list => { setHogarCats(list); setError(''); }}
+          />
+
+          {error && <p className="text-rose-500 text-sm font-medium mt-4">{error}</p>}
+
+          <div className="mt-6 space-y-2">
+            <button onClick={handleSaveCategories} disabled={loading}
+              className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold text-sm rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+              {loading ? <Loader size={18} className="animate-spin" /> : <>Siguiente <ArrowRight size={16} /></>}
+            </button>
+            <p className="text-[11px] text-zinc-400 text-center leading-relaxed">
+              Puedes cambiarlas cuando quieras desde Configuración.
+            </p>
+            <button type="button" onClick={() => setStep('costs')}
+              className="w-full text-zinc-400 text-sm hover:text-zinc-600 transition">← Volver</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ── Costs ─────────────────────────────────────────────────────────
   if (step === 'costs') {
     return (
       <div className="min-h-dvh bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center p-6">
         <div className="w-full max-w-sm">
-          <StepDots current={2} total={4} />
+          <StepDots current={2} total={5} />
           <div className="text-center mb-6">
             <h2 className="text-xl font-black text-zinc-900 dark:text-zinc-100">Gastos del depa</h2>
             <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-1">¿Cuánto pagan de alquiler y mantenimiento?</p>
@@ -526,7 +583,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
               className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold text-sm rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2">
               {loading ? <Loader size={18} className="animate-spin" /> : <>Siguiente <ArrowRight size={16} /></>}
             </button>
-            <button type="button" onClick={() => setStep('split')}
+            <button type="button" onClick={() => setStep('categories')}
               className="w-full text-zinc-400 text-sm hover:text-zinc-600 transition">
               Completar después
             </button>
@@ -557,7 +614,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
       <div className="min-h-dvh bg-zinc-50 dark:bg-zinc-950 flex items-start justify-center p-6 pt-10"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="w-full max-w-sm">
-          <StepDots current={3} total={4} />
+          <StepDots current={4} total={5} />
           <div className="text-center mb-6">
             <h2 className="text-xl font-black text-zinc-900 dark:text-zinc-100">¿Cómo dividen los gastos?</h2>
             <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-1">Se aplica por defecto. Puedes cambiarlo después.</p>

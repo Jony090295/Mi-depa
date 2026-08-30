@@ -7,8 +7,8 @@ interface Props {
   apartmentId: string;
   expenses: Expense[];
   rentExchangeRate: number;
-  customHogarCategories: string[];
-  customPersonalCategories: string[];
+  hogarCategories: string[];
+  personalCategories: string[];
 }
 
 export interface BudgetLimits {
@@ -16,9 +16,6 @@ export interface BudgetLimits {
   global_personal?: number;
   [category: string]: number | undefined;
 }
-
-const HOGAR_CATS = ['alquiler', 'servicio', 'comida', 'limpieza', 'membresia', 'auto', 'otros'];
-const PERSONAL_CATS = ['salud', 'ropa', 'deporte', 'comida', 'auto', 'otros'];
 
 function lsKey(apartmentId: string) {
   return `budget_limits_${apartmentId}`;
@@ -184,7 +181,7 @@ function BarRow({ label, spent, limit, onEdit }: BarRowProps) {
   );
 }
 
-export default function BudgetLimitsTab({ apartmentId, expenses, rentExchangeRate, customHogarCategories, customPersonalCategories }: Props) {
+export default function BudgetLimitsTab({ apartmentId, expenses, rentExchangeRate, hogarCategories, personalCategories }: Props) {
   const [limits, setLimits] = useState<BudgetLimits>(() => loadLimits(apartmentId));
   const [editing, setEditing] = useState<{ key: string; label: string } | null>(null);
   const [expandHogar, setExpandHogar] = useState(true);
@@ -224,8 +221,8 @@ export default function BudgetLimitsTab({ apartmentId, expenses, rentExchangeRat
       return s + e.amount * rate;
     }, 0), [monthExpenses, rentExchangeRate]);
 
-  const hogarCats = [...HOGAR_CATS, ...customHogarCategories.filter(c => !HOGAR_CATS.includes(c))];
-  const personalCats = [...PERSONAL_CATS, ...customPersonalCategories.filter(c => !PERSONAL_CATS.includes(c))];
+  const hogarCats = hogarCategories;
+  const personalCats = personalCategories;
 
   function updateLimit(key: string, value: number | undefined) {
     setLimits(prev => {

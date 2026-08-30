@@ -10,6 +10,7 @@ import { supabase } from '../lib/supabase';
 import {
   Roommate, Expense, RecurrentBill, RecurrentBillHistory,
   ForumPost, ForumReply, SettlementRecord, TrustedService,
+  HOGAR_DEFAULT_CATEGORIES, PERSONAL_DEFAULT_CATEGORIES,
 } from '../types';
 
 // ─── DB → App type mappers ───────────────────────────────────────────────────
@@ -102,6 +103,10 @@ export function useApartmentData(user: User) {
   const [loading, setLoading]             = useState(true);
   const [noApartment, setNoApartment]     = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState(true);
+  // null = este depa nunca editó sus categorías; se usan los defaults
+  // más los extras de la columna vieja. Ver supabase/editable_categories.sql
+  const [managedHogarCategories, setManagedHogarCategories] = useState<string[] | null>(null);
+  const [managedPersonalCategories, setManagedPersonalCategories] = useState<string[] | null>(null);
   const [customHogarCategories, setCustomHogarCategories] = useState<string[]>([]);
   const [customPersonalCategories, setCustomPersonalCategories] = useState<string[]>([]);
 
@@ -143,6 +148,7 @@ export function useApartmentData(user: User) {
         });
         setOnboardingComplete(apt.onboarding_complete === true);
         setCustomHogarCategories(apt.custom_hogar_categories ?? []);
+        setManagedHogarCategories(apt.hogar_categories ?? null);
       }
 
       // 3. Load all tables in parallel
@@ -169,6 +175,7 @@ export function useApartmentData(user: User) {
       setRoommates((rmRows ?? []).map(rowToRoommate));
       const myRmRow = (rmRows ?? []).find((r: any) => r.user_id === user.id);
       setCustomPersonalCategories(myRmRow?.custom_personal_categories ?? []);
+      setManagedPersonalCategories(myRmRow?.personal_categories ?? null);
       setExpenses((expRows ?? []).map(rowToExpense));
       setBills((billRows ?? []).map(rowToBill));
       setBillHistory((histRows ?? []).map(rowToHistory));
@@ -401,21 +408,44 @@ export function useApartmentData(user: User) {
     ));
   };
 
-  const addHogarCategory = async (name: string) => {
+  // Lista efectiva: la gestionada si existe, si no los defaults + extras
+  // de la columna vieja. Así el código funciona igual antes y después de
+  // que alguien edite sus categorías por primera vez.
+  const hogarCategories = managedHogarCategories
+    ?? [...HOGAR_DEFAULT_CATEGORIES, ...customHogarCategories.filter(c => !HOGAR_DEFAULT_CATEGORIES.includes(c as any))];
+
+  const personalCategories = managedPersonalCategories
+    ?? [...PERSONAL_DEFAULT_CATEGORIES, ...customPersonalCategories.filter(c => !PERSONAL_DEFAULT_CATEGORIES.includes(c as any))];
+
+  /** Guarda la lista completa de categorías de hogar del depa. */
+  const setHogarCategories = async (list: string[]) => {
     if (!apartmentId) return;
-    const updated = [...customHogarCategories, name];
-    await supabase.from('apartments').update({ custom_hogar_categories: updated }).eq('id', apartmentId);
-    setCustomHogarCategories(updated);
+    // 'otros' es el destino de inferCategoryFromName y el fallback de todo
+    // gasto sin clasificar, así que no puede faltar.
+    const safe = list.includes('otros') ? list : [...list, 'otros'];
+    await supabase.from('apartments').update({ hogar_categories: safe }).eq('id', apartmentId);
+    setManagedHogarCategories(safe);
+  };
+
+  /** Guarda la lista completa de categorías personales del usuario actual. */
+  const setPersonalCategories = async (list: string[]) => {
+    if (!apartmentId) return;
+    const safe = list.includes('otros') ? list : [...list, 'otros'];
+    const myRoommate = roommates.find(r => r.userId === user.id);
+    if (myRoommate) {
+      await supabase.from('roommates').update({ personal_categories: safe }).eq('id', myRoommate.id);
+    }
+    setManagedPersonalCategories(safe);
+  };
+
+  const addHogarCategory = async (name: string) => {
+    if (hogarCategories.includes(name)) return;
+    await setHogarCategories([...hogarCategories, name]);
   };
 
   const addPersonalCategory = async (name: string) => {
-    if (!apartmentId) return;
-    const updated = [...customPersonalCategories, name];
-    const myRoommate = roommates.find(r => r.userId === user.id);
-    if (myRoommate) {
-      await supabase.from('roommates').update({ custom_personal_categories: updated }).eq('id', myRoommate.id);
-    }
-    setCustomPersonalCategories(updated);
+    if (personalCategories.includes(name)) return;
+    await setPersonalCategories([...personalCategories, name]);
   };
 
   return {
@@ -444,6 +474,7 @@ export function useApartmentData(user: User) {
     addSettlement,
     customHogarCategories, customPersonalCategories,
     addHogarCategory, addPersonalCategory,
+    hogarCategories, personalCategories, setHogarCategories, setPersonalCategories,
     addPost, updatePost, deletePost, addReply,
     addTrustedService, updateTrustedService, deleteTrustedService,
     reload: loadAll,
