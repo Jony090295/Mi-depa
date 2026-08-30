@@ -153,8 +153,14 @@ CREATE TABLE settlements (
   created_at    timestamptz DEFAULT now()
 );
 
--- Foro "Red Vecinal". OJO: se consulta SIN filtro de apartment_id,
--- así que hoy es global para todos los usuarios de la app.
+-- Foro "Red Vecinal".
+--
+-- DECISIÓN DELIBERADA (2026-08-30): es global. Se consulta SIN filtro de
+-- apartment_id, a propósito — la gracia del foro es que trascienda tu
+-- depa. NO le agregues un filtro por apartment_id creyendo que es un bug.
+--
+-- La columna apartment_id se conserva para saber de dónde salió cada
+-- post, pero no se usa para filtrar.
 CREATE TABLE forum_posts (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   apartment_id uuid REFERENCES apartments(id) ON DELETE CASCADE,
@@ -176,7 +182,12 @@ CREATE TABLE forum_replies (
   created_at timestamptz DEFAULT now()
 );
 
--- Directorio de servicios. También global, igual que el foro.
+-- Directorio de servicios. Global igual que el foro, y por la misma
+-- decisión deliberada: la recomendación de un buen gasfitero solo sirve
+-- si la ven los vecinos, no solo tu roommate.
+--
+-- Consecuencia asumida: los teléfonos que guardes aquí los ve cualquier
+-- usuario de la app. No metas contactos privados.
 CREATE TABLE trusted_services (
   id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   apartment_id   uuid NOT NULL REFERENCES apartments(id) ON DELETE CASCADE,
@@ -310,8 +321,10 @@ DO $$ DECLARE t text; BEGIN
 END $$;
 
 -- ── forum_posts / trusted_services ──────────────────────────
--- Lectura global a propósito (la app las consulta sin filtro de depa),
--- pero escribir y borrar solo lo puede hacer el autor.
+-- Lectura global a propósito — ver la nota en la definición de las
+-- tablas. Lo que sí está restringido es la escritura: antes la política
+-- era FOR ALL con "auth.uid() IS NOT NULL", lo que dejaba a cualquier
+-- usuario editar y BORRAR los posts y contactos de otros depas.
 CREATE POLICY "forum_posts read"   ON forum_posts FOR SELECT USING (auth.uid() IS NOT NULL);
 CREATE POLICY "forum_posts insert" ON forum_posts FOR INSERT WITH CHECK (user_id = auth.uid());
 CREATE POLICY "forum_posts update" ON forum_posts FOR UPDATE
