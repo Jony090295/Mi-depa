@@ -41,10 +41,20 @@ function StepDots({ current, total }: { current: number; total: number }) {
 const inputCls = 'mt-1 w-full h-12 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500';
 const labelCls = 'text-xs font-bold uppercase tracking-wide text-zinc-400';
 
+/**
+ * Modo demo: recorre las pantallas sin tocar la base de datos.
+ * `import.meta.env.DEV` es una constante que Vite reemplaza al compilar, así
+ * que este bloque se elimina por completo del bundle de producción — no hay
+ * forma de activarlo en la app publicada.
+ */
+const DEMO = import.meta.env.DEV
+  && new URLSearchParams(window.location.search).get('demo') === '1';
+
 export default function ApartmentSetupScreen({ user, onReady, initialCode, resumeAptId }: Props) {
   const [step, setStep] = useState<Step>(resumeAptId ? 'roommates' : initialCode ? 'join' : 'choose');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [demoDone, setDemoDone] = useState(false);
 
   // Create form
   const [deptName, setDeptName] = useState('');
@@ -128,6 +138,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (DEMO) { setAptId('demo'); setStep('roommates'); return; }
     setLoading(true);
     try {
       const { data: apt, error: aptErr } = await supabase
@@ -177,6 +188,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
     const named = roommates.filter(r => r.name.trim());
     if (hasRoommates && named.length === 0) { setError('Agrega al menos un roommate o elige "Sin roommates".'); return; }
     setError('');
+    if (DEMO) { setStep('costs'); return; }
     setLoading(true);
     try {
       const toInsert = named.filter(r => !r.dbId);
@@ -215,6 +227,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
 
   const handleSaveCategories = async () => {
     if (hogarCats.length === 0) { setError('Elige al menos una categoría.'); return; }
+    if (DEMO) { setStep('split'); return; }
     setLoading(true);
     setError('');
     try {
@@ -229,6 +242,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
   };
 
   const handleSaveCosts = async () => {
+    if (DEMO) { setStep('categories'); return; }
     setLoading(true);
     setError('');
     try {
@@ -246,6 +260,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
   };
 
   const handleSaveSplit = async () => {
+    if (DEMO) { setDemoDone(true); return; }
     setLoading(true);
     setError('');
     try {
@@ -287,6 +302,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (DEMO) { setDemoDone(true); return; }
     setLoading(true);
     try {
       // Preferred path: server-side join that validates the invite code.
@@ -355,6 +371,29 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
       setLoading(false);
     }
   };
+
+  if (DEMO && demoDone) {
+    return (
+      <div className="min-h-dvh bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center p-6">
+        <div className="w-full max-w-sm text-center space-y-4">
+          <div className="w-16 h-16 bg-emerald-100 rounded-3xl flex items-center justify-center mx-auto">
+            <Check size={28} className="text-emerald-600" />
+          </div>
+          <h2 className="text-xl font-black text-zinc-900 dark:text-zinc-100">Fin del recorrido</h2>
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm leading-relaxed">
+            Aquí entrarías al depa y saldría el popup del link de invitación.<br />
+            No se guardó nada en la base de datos.
+          </p>
+          <button
+            onClick={() => { setDemoDone(false); setStep('choose'); setHasRoommates(null); }}
+            className="w-full h-12 bg-indigo-600 text-white font-bold text-sm rounded-2xl"
+          >
+            Empezar de nuevo
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ── Choose ────────────────────────────────────────────────────────
   if (step === 'choose') {

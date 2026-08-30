@@ -35,6 +35,12 @@ export default function AppShell() {
   if (urlJoinCode) sessionStorage.setItem('pendingJoinCode', urlJoinCode);
   const joinCode = urlJoinCode ?? sessionStorage.getItem('pendingJoinCode') ?? undefined;
 
+  // Modo demo del onboarding, solo en desarrollo local. `import.meta.env.DEV`
+  // lo elimina del bundle de producción al compilar.
+  if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('demo') === '1') {
+    return <ApartmentSetupScreen user={{ id: 'demo-user' } as any} onReady={() => {}} />;
+  }
+
   if (loading) {
     return (
       <div className="min-h-dvh bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center">
