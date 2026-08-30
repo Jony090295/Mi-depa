@@ -2,8 +2,9 @@ import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Roommate, Expense, ExpenseCategory, SplitType, RecurrentBill, SettlementRecord, HOGAR_DEFAULT_CATEGORIES, PERSONAL_DEFAULT_CATEGORIES } from '../types';
 import { CATEGORY_LABELS, getCategoryLabel, inferCategoryFromName } from '../utils';
+import { uploadReceipt, useReceiptUrl } from '../lib/receipts';
 import { calculateSettlements } from '../utils';
-import { Plus, Trash2, Split, Calendar, ArrowRight, Info, Check, Pencil, X, AlertTriangle, Camera, FileText, ArrowLeft, ChevronDown, ChevronRight, Home, User, Zap, ShoppingCart, Droplet, CreditCard, Car, MoreHorizontal, Heart, Tag, Activity, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Split, Calendar, ArrowRight, Info, Check, Pencil, X, AlertTriangle, Camera, FileText, ArrowLeft, ChevronDown, ChevronRight, Home, User, Zap, ShoppingCart, Droplet, CreditCard, Car, MoreHorizontal, Heart, Tag, Activity, RefreshCw, Loader } from 'lucide-react';
 
 interface ExpensesTabProps {
   roommates: Roommate[];
@@ -27,6 +28,7 @@ interface ExpensesTabProps {
   defaultSplitPercentages?: Record<string, number>;
   currentUserId?: string;
   currentRoommateId?: string;
+  apartmentId: string;
 }
 
 export default function ExpensesTab({
@@ -50,7 +52,7 @@ export default function ExpensesTab({
   defaultSplitType = 'equitativo',
   defaultSplitPercentages = {},
   currentUserId = '',
-  currentRoommateId,
+  currentRoommateId, apartmentId,
 }: ExpensesTabProps) {
   const resolvedAllRoommates = allRoommates || roommates;
   const [title, setTitle] = useState('');
@@ -76,6 +78,13 @@ export default function ExpensesTab({
   const [recurrentBillMonth, setRecurrentBillMonth] = useState('');
   const [receiptImage, setReceiptImage] = useState<string | undefined>(undefined);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
+  const [receiptError, setReceiptError] = useState('');
+
+  // receiptImage/lightboxImage guardan una ruta de Storage (o una data-URL
+  // en las filas viejas); estos hooks la convierten en algo mostrable.
+  const receiptThumbUrl = useReceiptUrl(receiptImage);
+  const lightboxUrl     = useReceiptUrl(lightboxImage ?? undefined);
   const [showSettlementHistory, setShowSettlementHistory] = useState(false);
   const [splitNotification, setSplitNotification] = useState<{ names: { name: string; amount: number; currency: string }[] } | null>(null);
   const [openMenuExpenseId, setOpenMenuExpenseId] = useState<string | null>(null);
@@ -263,14 +272,23 @@ export default function ExpensesTab({
     }));
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setReceiptImage(ev.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+    e.target.value = ''; // permite volver a elegir la misma foto tras un error
+    setUploadingReceipt(true);
+    setReceiptError('');
+    try {
+      setReceiptImage(await uploadReceipt(file, apartmentId));
+    } catch (err: any) {
+      setReceiptError(
+        /bucket|not found/i.test(err?.message ?? '')
+          ? 'Falta crear el bucket "receipts" en Supabase.'
+          : 'No se pudo subir la foto. Intenta de nuevo.'
+      );
+    } finally {
+      setUploadingReceipt(false);
+    }
   };
 
   const totalIncome = roommates.reduce((sum, r) => sum + r.income, 0);
@@ -648,7 +666,9 @@ export default function ExpensesTab({
       {/* Lightbox */}
       {lightboxImage && (
         <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4" onClick={() => setLightboxImage(null)}>
-          <img src={lightboxImage} alt="Comprobante" className="max-w-full max-h-full rounded-2xl object-contain" />
+          {lightboxUrl
+            ? <img src={lightboxUrl} alt="Comprobante" className="max-w-full max-h-full rounded-2xl object-contain" />
+            : <Loader size={28} className="animate-spin text-white/70" />}
           <button className="absolute top-4 right-4 bg-white/20 text-white p-2 rounded-full" onClick={() => setLightboxImage(null)}><X size={20} /></button>
         </div>
       )}
@@ -1188,9 +1208,15 @@ export default function ExpensesTab({
                     style={{ color: '#242536' }}
                   />
                   <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
-                  {receiptImage ? (
+                  {uploadingReceipt ? (
+                    <div className="w-11 h-11 shrink-0 flex items-center justify-center" aria-label="Subiendo recibo">
+                      <Loader size={18} className="animate-spin text-indigo-500" />
+                    </div>
+                  ) : receiptImage ? (
                     <div className="relative shrink-0">
-                      <img src={receiptImage} alt="Comprobante" className="w-9 h-9 object-cover rounded-xl cursor-pointer" style={{ border: '1px solid rgba(80,80,120,0.12)' }} onClick={() => setLightboxImage(receiptImage)} />
+                      {receiptThumbUrl
+                        ? <img src={receiptThumbUrl} alt="Comprobante" className="w-9 h-9 object-cover rounded-xl cursor-pointer" style={{ border: '1px solid rgba(80,80,120,0.12)' }} onClick={() => setLightboxImage(receiptImage)} />
+                        : <div className="w-9 h-9 rounded-xl bg-zinc-100 flex items-center justify-center"><Loader size={12} className="animate-spin text-zinc-400" /></div>}
                       <button type="button" aria-label="Eliminar foto" onClick={() => setReceiptImage(undefined)} className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full flex items-center justify-center"><X size={8} /></button>
                     </div>
                   ) : (
@@ -1199,6 +1225,9 @@ export default function ExpensesTab({
                     </button>
                   )}
                 </div>
+                {receiptError && (
+                  <p className="text-[11px] text-rose-500 font-medium mt-1.5 px-1">{receiptError}</p>
+                )}
 
                 {/* 4. División — solo Hogar */}
                 {macroCategory === 'hogar' && (

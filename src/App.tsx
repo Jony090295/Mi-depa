@@ -1034,6 +1034,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
             defaultSplitPercentages={aptConfig?.defaultSplitPercentages ?? {}}
             currentUserId={user.id}
             currentRoommateId={roommates.find(r => r.userId === user.id)?.id}
+            apartmentId={data.apartmentId}
           />
         )}
 
