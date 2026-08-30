@@ -61,6 +61,36 @@ export async function deleteReceipt(value: string | undefined): Promise<void> {
   await supabase.storage.from(BUCKET).remove([value]);
 }
 
+/**
+ * Sube un recibo que estaba guardado como data-URL y apunta la fila a
+ * Storage. Devuelve la ruta nueva.
+ *
+ * La columna se actualiza solo si la subida salió bien, así que un fallo
+ * a medias deja el base64 intacto y se puede reintentar.
+ */
+export async function migrateLegacyReceipt(
+  expenseId: string,
+  dataUrl: string,
+  apartmentId: string
+): Promise<string> {
+  const blob = await (await fetch(dataUrl)).blob();
+  const file = new File([blob], 'recibo.jpg', { type: blob.type || 'image/jpeg' });
+
+  const path = await uploadReceipt(file, apartmentId);
+
+  const { error } = await supabase
+    .from('expenses')
+    .update({ receipt_image: path })
+    .eq('id', expenseId);
+
+  if (error) {
+    // La fila sigue con el base64; borra el huérfano para no dejar basura.
+    await supabase.storage.from(BUCKET).remove([path]);
+    throw error;
+  }
+  return path;
+}
+
 const urlCache = new Map<string, { url: string; expires: number }>();
 
 /** Resuelve una ruta de Storage a una URL firmada, con caché en memoria. */
