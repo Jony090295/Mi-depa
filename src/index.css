@@ -1,5 +1,8 @@
-@import "tailwindcss";
+/* La fuente va PRIMERO: @import "tailwindcss" se expande a ~3100 líneas, así
+   que cualquier @import después queda a mitad del archivo y PostCSS lo
+   descarta por inválido — la fuente no se cargaba. */
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
