@@ -1,0 +1,48 @@
+# Evita que Supabase pause el proyecto.
+#
+# El plan Free pausa los proyectos tras 7 días sin actividad y retira su DNS,
+# lo que tumba la app entera (pasó el 2026-09: 20 días sin uso → "Load failed"
+# en todo). Una consulta diaria a la API cuenta como actividad y lo mantiene
+# despierto.
+#
+# La consulta es de solo lectura y devuelve [] por RLS — no expone nada.
+#
+# Secrets necesarios (Settings → Secrets and variables → Actions):
+#   SUPABASE_URL       https://xxxx.supabase.co
+#   SUPABASE_ANON_KEY  la anon key (es pública, pero mejor no versionarla)
+#
+# Ojo: GitHub desactiva los crons en repos sin commits por 60 días.
+# Cualquier commit los reactiva.
+
+name: Keep Supabase alive
+
+on:
+  schedule:
+    - cron: '0 9 * * *'   # todos los días a las 9:00 UTC (4:00 en Lima)
+  workflow_dispatch:      # permite correrlo a mano desde la pestaña Actions
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Consulta mínima a la base de datos
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::Faltan los secrets SUPABASE_URL y/o SUPABASE_ANON_KEY"
+            exit 1
+          fi
+
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            "$SUPABASE_URL/rest/v1/apartments?select=id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            --max-time 30)
+
+          echo "Supabase respondió HTTP $code"
+
+          # 200 = vivo. Cualquier otra cosa (000 = DNS caído = pausado) falla
+          # el job, y GitHub te avisa por correo.
+          [ "$code" = "200" ]
