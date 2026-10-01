@@ -10,7 +10,7 @@ import AuthScreen from './components/AuthScreen';
 import ApartmentSetupScreen from './components/ApartmentSetupScreen';
 import ResetPasswordScreen from './components/ResetPasswordScreen';
 import InviteRoommatesModal from './components/InviteRoommatesModal';
-import CategoryPicker from './components/CategoryPicker';
+import CategoriesScreen from './components/CategoriesScreen';
 
 // Components
 import ExpensesTab from './components/ExpensesTab';
@@ -22,7 +22,7 @@ import ProjectedBudget from './components/ProjectedBudget';
 // Icons
 import {
   Home, Split, Clock, Users, BellRing, ChevronRight, Search,
-  Moon, Sun, Settings, Check, ArrowRight, Plus, Pencil, Trash2, TrendingUp, Loader, Copy, LogOut, Receipt, Target, AlertTriangle,
+  Moon, Sun, Settings, Check, ArrowRight, Plus, Pencil, Trash2, TrendingUp, Loader, Copy, LogOut, Receipt, Target, AlertTriangle, Tags,
 } from 'lucide-react';
 
 // ─── Auth shell ──────────────────────────────────────────────────────────────
@@ -86,7 +86,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     addExpense, updateExpense, removeExpense,
     addBill, updateBill, removeBill,
     addBillHistory, removeBillHistory, updateBillHistoryEntry,
-    hogarCategories, personalCategories, setHogarCategories, setPersonalCategories, renameCategory,
+    hogarCategories, personalCategories, setHogarCategories, setPersonalCategories, renameCategory, deleteCategory, categoryUsage,
     addHogarCategory, addPersonalCategory,
     addSettlement, addPost, updatePost, deletePost, addReply,
     addTrustedService, updateTrustedService, deleteTrustedService,
@@ -139,6 +139,8 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
 
   // Home config form state (synced from aptConfig when it loads)
   const [homeConfigOpen, setHomeConfigOpen]       = useState(false);
+  // Pantalla de categorías: null = cerrada; si no, la pestaña con que abre
+  const [categoriesOpen, setCategoriesOpen] = useState<null | 'hogar' | 'personal'>(null);
   const [codeCopied, setCodeCopied]               = useState(false);
   const [homeApartmentName, setHomeApartmentName] = useState('');
   const [homeAddress, setHomeAddress]             = useState('');
@@ -606,17 +608,6 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     const rate = b.currency === 'USD' ? (b.exchangeRate || 3.80) : 1;
     return sum + b.amount * rate;
   }, 0);
-  // Una categoría está en uso si la tiene un gasto, un recurrente o un pago
-  // registrado de un recurrente. Antes solo se miraban los gastos, así que se
-  // podía quitar una categoría que solo usaba, por ejemplo, el recibo de luz.
-  const usedHogarCategories: string[] = Array.from(new Set([
-    ...expenses.filter(e => e.macroCategory !== 'personal').map(e => e.category),
-    ...bills.map(b => b.category),
-    ...billHistory.map(h => h.category),
-  ].filter((c): c is string => !!c)));
-  const usedPersonalCategories: string[] = Array.from(new Set(
-    expenses.filter(e => e.macroCategory === 'personal').map(e => e.category).filter((c): c is string => !!c)
-  ));
 
   const homeSettlements    = calculateSettlements(expenses, roommates, settlementHistory);
   const pendingDebtsCount  = homeSettlements.length;
@@ -878,6 +869,25 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                 </div>
               </div>
 
+              {/* Ajustes */}
+              <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 px-1 -mb-1">Ajustes</p>
+              <button
+                type="button"
+                onClick={() => setCategoriesOpen('hogar')}
+                className="w-full rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex items-center justify-between px-4 py-3.5 text-left active:bg-zinc-50 dark:active:bg-zinc-800 transition"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Tags size={16} className="text-zinc-400" />
+                  <div>
+                    <span className="block text-[14px] font-medium text-zinc-700 dark:text-zinc-300">Categorías</span>
+                    <span className="block text-[12px] text-zinc-400 dark:text-zinc-500">
+                      {hogarCategories.length} de hogar · {personalCategories.length} personales
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight size={16} className="text-zinc-300" />
+              </button>
+
               {/* Configuración del depa */}
               <div className="rounded-2xl border border-zinc-100 dark:border-zinc-800 overflow-hidden bg-white dark:bg-zinc-900">
                 <button type="button" onClick={() => setHomeConfigOpen(o => !o)}
@@ -951,30 +961,6 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                       </div>
                     )}
 
-                    {/* Categorías */}
-                    <div>
-                      <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide">Categorías del hogar</label>
-                      <p className="text-[11px] text-zinc-400 mt-0.5 mb-2">Compartidas con todo el depa.</p>
-                      <CategoryPicker
-                        suggestions={HOGAR_DEFAULT_CATEGORIES}
-                        value={hogarCategories}
-                        onChange={list => { void setHogarCategories(list).catch(error => showActionError(error, 'No se pudieron guardar las categorías del hogar.')); }}
-                        locked={usedHogarCategories}
-                        onRename={(from, to) => renameCategory(from, to, 'hogar')}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide">Mis categorías personales</label>
-                      <p className="text-[11px] text-zinc-400 mt-0.5 mb-2">Solo tuyas. Cada roommate tiene las suyas.</p>
-                      <CategoryPicker
-                        suggestions={PERSONAL_DEFAULT_CATEGORIES}
-                        value={personalCategories}
-                        onChange={list => { void setPersonalCategories(list).catch(error => showActionError(error, 'No se pudieron guardar tus categorías personales.')); }}
-                        locked={usedPersonalCategories}
-                        onRename={(from, to) => renameCategory(from, to, 'personal')}
-                      />
-                    </div>
                     {/* Default split */}
                     <div>
                       <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide">Cómo dividen los gastos por defecto</label>
@@ -1070,6 +1056,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
             personalCategories={personalCategories}
             onAddHogarCategory={addHogarCategory}
             onAddPersonalCategory={addPersonalCategory}
+            onManageCategories={macro => setCategoriesOpen(macro)}
             prefilledBillId={prefilledBillId}
             onClearPrefilledBillId={() => setPrefilledBillId('')}
             settlementHistory={settlementHistory}
@@ -1108,6 +1095,19 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
         )}
 
       </main>
+
+      {categoriesOpen && (
+        <CategoriesScreen
+          initialTab={categoriesOpen}
+          hogarCategories={hogarCategories}
+          personalCategories={personalCategories}
+          usage={categoryUsage}
+          onAdd={(name, macro) => macro === 'hogar' ? addHogarCategory(name) : addPersonalCategory(name)}
+          onRename={renameCategory}
+          onDelete={deleteCategory}
+          onClose={() => setCategoriesOpen(null)}
+        />
+      )}
 
       {showInvite && aptConfig?.inviteCode && (
         <InviteRoommatesModal
@@ -1165,4 +1165,3 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     </div>
   );
 }
-

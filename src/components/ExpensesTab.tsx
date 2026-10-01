@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Roommate, Expense, ExpenseCategory, SplitType, RecurrentBill, SettlementRecord } from '../types';
 import { CATEGORY_LABELS, getCategoryLabel, inferCategoryFromName } from '../utils';
 import { uploadReceipt, useReceiptUrl } from '../lib/receipts';
+import { categoryIcon } from '../lib/categoryIcons';
 import { calculateSettlements } from '../utils';
 import { Plus, Trash2, Split, Calendar, ArrowRight, Info, Check, Pencil, X, AlertTriangle, Camera, FileText, ArrowLeft, ChevronDown, ChevronRight, Home, User, Zap, ShoppingCart, Droplet, CreditCard, Car, MoreHorizontal, Heart, Tag, Activity, RefreshCw, Loader } from 'lucide-react';
 
@@ -20,6 +21,8 @@ interface ExpensesTabProps {
   personalCategories?: string[];
   onAddHogarCategory?: (name: string) => Promise<void>;
   onAddPersonalCategory?: (name: string) => Promise<void>;
+  /** Abre la pantalla de categorías encima del formulario, sin desmontarlo. */
+  onManageCategories?: (macro: 'hogar' | 'personal') => void;
   prefilledBillId?: string;
   onClearPrefilledBillId?: () => void;
   settlementHistory?: SettlementRecord[];
@@ -45,6 +48,7 @@ export default function ExpensesTab({
   personalCategories = [],
   onAddHogarCategory,
   onAddPersonalCategory,
+  onManageCategories,
   prefilledBillId,
   onClearPrefilledBillId,
   settlementHistory = [],
@@ -276,6 +280,22 @@ export default function ExpensesTab({
       setCustomPercentages(initialPerc);
     }
   }, [roommates]);
+
+  // Si desde "Gestionar" se renombra o elimina la categoría seleccionada, el
+  // formulario no puede quedarse con el nombre viejo: al guardar recrearía una
+  // categoría huérfana. Se compara con la lista anterior para distinguir:
+  // renombrar = sale una y entra otra en su lugar; eliminar = solo sale.
+  const activeCats = macroCategory === 'hogar' ? hogarCategories : personalCategories;
+  const prevCatsRef = useRef<string[]>(activeCats);
+  React.useEffect(() => {
+    const prev = prevCatsRef.current;
+    prevCatsRef.current = activeCats;
+    if (activeCats.includes(category) || !prev.includes(category)) return;
+    const removed = prev.filter(c => !activeCats.includes(c));
+    const added   = activeCats.filter(c => !prev.includes(c));
+    if (removed.length === 1 && added.length === 1) setCategory(added[0]);
+    else setCategory(activeCats.includes('otros') ? 'otros' : (activeCats[0] ?? 'otros'));
+  }, [activeCats, category]);
 
   // Un gasto personal solo puede ser de uno mismo (la base lo exige). Vigila
   // también paidBy, no solo el modo: si algún camino lo cambia estando en
@@ -641,19 +661,6 @@ export default function ExpensesTab({
     }
   };
 
-  // Una categoría renombrada o creada por el usuario no está en el mapa. En vez
-  // de caer directo al ícono genérico, se infiere por el nombre: "mercado"
-  // conserva el carrito de "comida". inferCategoryFromName devuelve 'otros'
-  // cuando no reconoce nada, que también está en el mapa.
-  const iconFor = (cat: string): React.ElementType =>
-    CATEGORY_ICON_MAP[cat] ?? CATEGORY_ICON_MAP[inferCategoryFromName(cat)] ?? MoreHorizontal;
-
-  const CATEGORY_ICON_MAP: Record<string, React.ElementType> = {
-    alquiler: Home, servicio: Zap, comida: ShoppingCart, limpieza: Droplet,
-    membresia: CreditCard, auto: Car, otros: MoreHorizontal,
-    salud: Heart, ropa: Tag, deporte: Activity,
-  };
-
   const renderSplitSummary = () => {
     if (splitType === 'proporcional') return <span>Por ingresos</span>;
     const pairs = roommates.map((r, i) => {
@@ -923,7 +930,7 @@ export default function ExpensesTab({
               <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2 px-1">{group.label}</p>
               <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 overflow-hidden">
                 {group.items.map((expense, i) => {
-                  const CatIcon = iconFor(expense.category);
+                  const CatIcon = categoryIcon(expense.category);
                   const catColor = {
                     alquiler: '#4F46E5', servicio: '#EC4899', comida: '#F59E0B',
                     limpieza: '#10B981', membresia: '#3B82F6', auto: '#8B5CF6',
@@ -1423,7 +1430,18 @@ export default function ExpensesTab({
 
                 {/* 5. Categorías */}
                 <div className="space-y-2">
-                  <label className="text-[11px] font-semibold uppercase tracking-wide px-1" style={{ color: '#8D90A5' }}>Categoría</label>
+                  <div className="flex items-center justify-between px-1">
+                    <label className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: '#8D90A5' }}>Categoría</label>
+                    {onManageCategories && (
+                      <button
+                        type="button"
+                        onClick={() => onManageCategories(macroCategory)}
+                        className="text-[12px] font-semibold text-indigo-600 active:text-indigo-800 px-1 -mr-1"
+                      >
+                        Gestionar
+                      </button>
+                    )}
+                  </div>
                   <div className="flex gap-2 flex-wrap">
                     {(() => {
                       const allCats = (macroCategory === 'hogar' ? hogarCategories : personalCategories) as string[];
@@ -1442,7 +1460,7 @@ export default function ExpensesTab({
                         <>
                           {visibleCats.map(cat => {
                             const active = category === cat;
-                            const CatIcon = iconFor(cat);
+                            const CatIcon = categoryIcon(cat);
                             return (
                               <button key={cat} type="button" onClick={() => setCategory(cat)}
                                 className={`flex items-center gap-1.5 h-9 px-3 rounded-xl text-[13px] font-medium transition active:scale-95 ${active ? 'text-indigo-700 bg-white' : 'bg-white text-gray-500 hover:text-gray-700'}`}

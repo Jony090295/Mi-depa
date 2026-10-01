@@ -495,27 +495,34 @@ export function useApartmentData(user: User) {
     setManagedPersonalCategories(safe);
   };
 
+  /** ¿Esta fila de gasto pertenece a la lista `macro` del usuario actual? */
+  const expenseInScope = (e: Expense, macro: 'hogar' | 'personal', myId?: string) => {
+    const isPersonal = e.macroCategory === 'personal';
+    return macro === 'personal' ? (isPersonal && e.paidBy === myId) : !isPersonal;
+  };
+
+  /** Cuántos gastos, recurrentes y pagos de recurrentes usan una categoría. */
+  const categoryUsage = (cat: string, macro: 'hogar' | 'personal'): number => {
+    const myId = roommates.find(r => r.userId === user.id)?.id;
+    const exp = expenses.filter(e => e.category === cat && expenseInScope(e, macro, myId)).length;
+    if (macro === 'personal') return exp;
+    return exp
+      + bills.filter(b => b.category === cat).length
+      + billHistory.filter(h => h.category === cat).length;
+  };
+
   /**
-   * Renombra una categoría y arrastra todo lo que la usa.
+   * Pasa todo lo que usa la categoría `from` a `to`: gastos y, en hogar,
+   * recurrentes y su historial. No toca la lista de categorías.
    *
-   * La categoría se guarda como texto dentro de cada gasto, no como un id, así
-   * que cambiarla solo en la lista dejaría el historial apuntando al nombre
-   * viejo. Por eso esto actualiza las filas antes que la lista: si el UPDATE
-   * falla, la lista queda intacta y se puede reintentar.
+   * La categoría se guarda como texto dentro de cada fila, no como un id, así
+   * que cambiar solo la lista dejaría el historial apuntando al nombre viejo.
+   * Quien llama actualiza la lista DESPUÉS de esto: si un UPDATE falla, la
+   * lista queda intacta y se puede reintentar.
    */
-  const renameCategory = async (oldName: string, newName: string, macro: 'hogar' | 'personal') => {
+  const moveCategoryUsages = async (from: string, to: string, macro: 'hogar' | 'personal') => {
     const aptId = requireApartmentId(apartmentId);
-    const from = oldName.trim();
-    const to   = newName.trim().toLowerCase();
-
-    if (!to) throw new Error('El nombre no puede estar vacío.');
-    if (to === from) return;
-    if (from === 'otros') throw new Error('"Otros" no se puede renombrar: es donde caen los gastos sin clasificar.');
-
-    const list = macro === 'hogar' ? hogarCategories : personalCategories;
-    if (list.includes(to)) {
-      throw new Error(`Ya tienes una categoría llamada "${getCategoryLabel(to)}".`);
-    }
+    const myId = roommates.find(r => r.userId === user.id)?.id;
 
     const expenseQuery = supabase
       .from('expenses')
@@ -523,21 +530,15 @@ export function useApartmentData(user: User) {
       .eq('apartment_id', aptId)
       .eq('category', from);
 
-    // En personal se filtra por quien pagó de forma EXPLÍCITA. La política de
-    // UPDATE de expenses es solo is_member(); que no toque los personales de
-    // otro roommate dependería de que Postgres aplique también la de SELECT
-    // por tener WHERE. Mejor no apostar la privacidad a esa sutileza: si
-    // fallara, renombrar tu "salud" renombraría también la de tu roommate.
+    // En personal se filtra por quien pagó de forma EXPLÍCITA, sin apostar la
+    // privacidad a que la RLS de UPDATE lo haga. Ver active_privacy_hardening.sql.
     let expErr;
     if (macro === 'personal') {
-      const me = roommates.find(r => r.userId === user.id);
-      if (!me) throw new Error('Tu perfil de roommate no está vinculado. Recarga e intenta de nuevo.');
-      ({ error: expErr } = await expenseQuery.eq('macro_category', 'personal').eq('paid_by', me.id));
+      if (!myId) throw new Error('Tu perfil de roommate no está vinculado. Recarga e intenta de nuevo.');
+      ({ error: expErr } = await expenseQuery.eq('macro_category', 'personal').eq('paid_by', myId));
     } else {
-      // Hogar = todo lo que no es personal, INCLUIDO macro_category NULL: los
-      // gastos anteriores a esa columna lo tienen nulo y la app los trata como
-      // hogar. Un .neq() solo los saltaría, porque en SQL NULL <> 'personal'
-      // da NULL, no verdadero — quedarían con el nombre viejo.
+      // Hogar incluye macro_category NULL (filas anteriores a esa columna): en
+      // SQL NULL <> 'personal' da NULL, así que un .neq() las saltaría.
       ({ error: expErr } = await expenseQuery.or('macro_category.is.null,macro_category.neq.personal'));
     }
     throwIfSupabaseError(expErr, 'No se pudieron actualizar los gastos de esa categoría.');
@@ -553,36 +554,73 @@ export function useApartmentData(user: User) {
       throwIfSupabaseError(histErr, 'No se pudo actualizar el historial de recurrentes.');
     }
 
-    // Recién ahora la lista
-    const renamed = list.map(c => (c === from ? to : c));
-    if (macro === 'hogar') await setHogarCategories(renamed);
-    else                   await setPersonalCategories(renamed);
-
-    // Reflejar el cambio en memoria para no tener que recargar
-    // Mismo alcance que el UPDATE: en personal, solo los que pagué yo
-    const myId = roommates.find(r => r.userId === user.id)?.id;
-    setExpenses(prev => prev.map(e => {
-      if (e.category !== from) return e;
-      const isPersonal = e.macroCategory === 'personal';
-      if (macro === 'personal' ? (isPersonal && e.paidBy === myId) : !isPersonal) {
-        return { ...e, category: to };
-      }
-      return e;
-    }));
+    // Reflejar en memoria, con el mismo alcance que los UPDATE
+    setExpenses(prev => prev.map(e =>
+      e.category === from && expenseInScope(e, macro, myId) ? { ...e, category: to } : e
+    ));
     if (macro === 'hogar') {
       setBills(prev => prev.map(b => b.category === from ? { ...b, category: to } : b));
       setBillHistory(prev => prev.map(h => h.category === from ? { ...h, category: to } : h));
     }
   };
 
+  /** Renombra una categoría y arrastra todo lo que la usa. */
+  const renameCategory = async (oldName: string, newName: string, macro: 'hogar' | 'personal') => {
+    const from = oldName.trim();
+    const to   = newName.trim().toLowerCase();
+
+    if (!to) throw new Error('Escribe un nombre.');
+    if (to === from) return;
+    if (from === 'otros') throw new Error('"Otros" no se puede renombrar: es donde caen los gastos sin clasificar.');
+
+    const list = macro === 'hogar' ? hogarCategories : personalCategories;
+    if (list.includes(to)) {
+      throw new Error(`Ya tienes una categoría llamada "${getCategoryLabel(to)}".`);
+    }
+
+    await moveCategoryUsages(from, to, macro);
+
+    const renamed = list.map(c => (c === from ? to : c));
+    if (macro === 'hogar') await setHogarCategories(renamed);
+    else                   await setPersonalCategories(renamed);
+  };
+
+  /**
+   * Elimina una categoría. Si algo la usa, hay que decir a cuál mover esos
+   * gastos (`moveTo`); sin eso se niega, para no dejar filas apuntando a una
+   * categoría que ya no existe.
+   */
+  const deleteCategory = async (name: string, macro: 'hogar' | 'personal', moveTo?: string) => {
+    if (name === 'otros') throw new Error('"Otros" no se puede eliminar: es donde caen los gastos sin clasificar.');
+
+    const list = macro === 'hogar' ? hogarCategories : personalCategories;
+    const used = categoryUsage(name, macro);
+
+    if (used > 0) {
+      if (!moveTo) throw new Error('Elige a qué categoría mover sus gastos.');
+      if (moveTo === name || !list.includes(moveTo)) throw new Error('Esa categoría de destino no existe.');
+      await moveCategoryUsages(name, moveTo, macro);
+    }
+
+    const remaining = list.filter(c => c !== name);
+    if (macro === 'hogar') await setHogarCategories(remaining);
+    else                   await setPersonalCategories(remaining);
+  };
+
+  /** Agrega antes de 'otros': el cajón de lo no clasificado va siempre al final. */
+  const insertBeforeOtros = (list: string[], name: string) => {
+    const i = list.indexOf('otros');
+    return i === -1 ? [...list, name] : [...list.slice(0, i), name, ...list.slice(i)];
+  };
+
   const addHogarCategory = async (name: string) => {
     if (hogarCategories.includes(name)) return;
-    await setHogarCategories([...hogarCategories, name]);
+    await setHogarCategories(insertBeforeOtros(hogarCategories, name));
   };
 
   const addPersonalCategory = async (name: string) => {
     if (personalCategories.includes(name)) return;
-    await setPersonalCategories([...personalCategories, name]);
+    await setPersonalCategories(insertBeforeOtros(personalCategories, name));
   };
 
   return {
@@ -612,7 +650,7 @@ export function useApartmentData(user: User) {
     addSettlement,
     customHogarCategories, customPersonalCategories,
     addHogarCategory, addPersonalCategory,
-    hogarCategories, personalCategories, setHogarCategories, setPersonalCategories, renameCategory,
+    hogarCategories, personalCategories, setHogarCategories, setPersonalCategories, renameCategory, deleteCategory, categoryUsage,
     addPost, updatePost, deletePost, addReply,
     addTrustedService, updateTrustedService, deleteTrustedService,
     reload: loadAll,
