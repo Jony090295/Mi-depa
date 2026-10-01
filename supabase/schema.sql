@@ -105,7 +105,10 @@ CREATE TABLE expenses (
   macro_category       text
 );
 
--- Gastos recurrentes
+-- Gastos recurrentes: plantillas que se cargan en el formulario de gasto.
+-- Se gestionan en Inicio → Ajustes → Recurrentes. El ciclo mensual
+-- (status 'por pagar' / 'pagado', alert_sent) quedó sin uso cuando se quitó
+-- la pestaña Recurrentes; las columnas siguen ahí.
 CREATE TABLE bills (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   apartment_id          uuid REFERENCES apartments(id) ON DELETE CASCADE,
@@ -123,8 +126,11 @@ CREATE TABLE bills (
   exchange_rate         numeric NOT NULL DEFAULT 1,
   category              text DEFAULT 'servicio',
   is_auto_debit         boolean NOT NULL DEFAULT false,
-  deleted_at            text,
-  created_at            timestamptz DEFAULT now()
+  deleted_at            text,          -- borrado suave si tenía historial
+  created_at            timestamptz DEFAULT now(),
+  -- 'hogar' | 'personal' (agregado 2026-10-01, personal_recurrents.sql).
+  -- NULL = hogar. Personal = solo lo ve quien lo paga (paid_by).
+  macro_category        text
 );
 
 -- Historial de pagos de recurrentes
@@ -146,7 +152,8 @@ CREATE TABLE bill_history (
   status         text DEFAULT 'pagado',
   category       text,
   is_auto_debit  boolean,
-  created_at     timestamptz DEFAULT now()
+  created_at     timestamptz DEFAULT now(),
+  macro_category text            -- igual que bills.macro_category
 );
 
 -- Liquidaciones de deuda entre roommates
@@ -363,9 +370,23 @@ CREATE POLICY "expenses delete" ON expenses FOR DELETE
     )
   );
 
--- ── roommates, bills, bill_history, settlements ──────────────
+-- ── bills, bill_history ─────────────────────────────────────
+-- Misma regla que expenses: un recurrente personal solo existe para quien
+-- lo paga. Antes era "members full access" y un recurrente creado desde un
+-- gasto personal quedaba visible, con nombre y monto, para todo el depa.
+-- Definición vigente en supabase/personal_recurrents.sql (2026-10-01).
 DO $$ DECLARE t text; BEGIN
-  FOREACH t IN ARRAY ARRAY['roommates','bills','bill_history','settlements'] LOOP
+  FOREACH t IN ARRAY ARRAY['bills','bill_history'] LOOP
+    EXECUTE format('CREATE POLICY "%s select" ON %I FOR SELECT USING (is_member(apartment_id) AND (macro_category IS DISTINCT FROM ''personal'' OR paid_by = my_roommate_id(apartment_id)::text))', t, t);
+    EXECUTE format('CREATE POLICY "%s insert" ON %I FOR INSERT WITH CHECK (is_member(apartment_id) AND (macro_category IS DISTINCT FROM ''personal'' OR paid_by = my_roommate_id(apartment_id)::text))', t, t);
+    EXECUTE format('CREATE POLICY "%s update" ON %I FOR UPDATE USING (is_member(apartment_id) AND (macro_category IS DISTINCT FROM ''personal'' OR paid_by = my_roommate_id(apartment_id)::text)) WITH CHECK (is_member(apartment_id) AND (macro_category IS DISTINCT FROM ''personal'' OR paid_by = my_roommate_id(apartment_id)::text))', t, t);
+    EXECUTE format('CREATE POLICY "%s delete" ON %I FOR DELETE USING (is_member(apartment_id) AND (macro_category IS DISTINCT FROM ''personal'' OR paid_by = my_roommate_id(apartment_id)::text))', t, t);
+  END LOOP;
+END $$;
+
+-- ── roommates, settlements ──────────────────────────────────
+DO $$ DECLARE t text; BEGIN
+  FOREACH t IN ARRAY ARRAY['roommates','settlements'] LOOP
     EXECUTE format(
       'CREATE POLICY "members full access" ON %I FOR ALL '
       'USING (is_member(apartment_id)) WITH CHECK (is_member(apartment_id))', t);

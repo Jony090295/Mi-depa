@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { Roommate, Expense, RecurrentBill, RecurrentBillHistory, ForumPost, ForumReply, SettlementRecord, VariableReminder, HOGAR_DEFAULT_CATEGORIES, PERSONAL_DEFAULT_CATEGORIES } from './types';
-import { calculateSettlements } from './utils';
+import { calculateSettlements, configManagedBillKind } from './utils';
 
 // Auth + Supabase
 import { useAuth } from './hooks/useAuth';
@@ -11,6 +11,7 @@ import ApartmentSetupScreen from './components/ApartmentSetupScreen';
 import ResetPasswordScreen from './components/ResetPasswordScreen';
 import InviteRoommatesModal from './components/InviteRoommatesModal';
 import CategoriesScreen from './components/CategoriesScreen';
+import RecurrentsScreen from './components/RecurrentsScreen';
 
 // Components
 import ExpensesTab from './components/ExpensesTab';
@@ -22,7 +23,7 @@ import ProjectedBudget from './components/ProjectedBudget';
 // Icons
 import {
   Home, Split, Clock, Users, BellRing, ChevronRight, Search,
-  Moon, Sun, Settings, Check, ArrowRight, Plus, Pencil, Trash2, TrendingUp, Loader, Copy, LogOut, Receipt, Target, AlertTriangle, Tags,
+  Moon, Sun, Settings, Check, ArrowRight, Plus, Pencil, Trash2, TrendingUp, Loader, Copy, LogOut, Receipt, Target, AlertTriangle, Tags, RefreshCw,
 } from 'lucide-react';
 
 // ─── Auth shell ──────────────────────────────────────────────────────────────
@@ -86,7 +87,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     addExpense, updateExpense, removeExpense,
     addBill, updateBill, removeBill,
     addBillHistory, removeBillHistory, updateBillHistoryEntry,
-    hogarCategories, personalCategories, setHogarCategories, setPersonalCategories, renameCategory, deleteCategory, categoryUsage,
+    hogarCategories, personalCategories, setHogarCategories, setPersonalCategories, renameCategory, deleteCategory, categoryUsage, deleteRecurrent,
     addHogarCategory, addPersonalCategory,
     addSettlement, addPost, updatePost, deletePost, addReply,
     addTrustedService, updateTrustedService, deleteTrustedService,
@@ -141,6 +142,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
   const [homeConfigOpen, setHomeConfigOpen]       = useState(false);
   // Pantalla de categorías: null = cerrada; si no, la pestaña con que abre
   const [categoriesOpen, setCategoriesOpen] = useState<null | 'hogar' | 'personal'>(null);
+  const [recurrentsOpen, setRecurrentsOpen] = useState(false);
   const [codeCopied, setCodeCopied]               = useState(false);
   const [homeApartmentName, setHomeApartmentName] = useState('');
   const [homeAddress, setHomeAddress]             = useState('');
@@ -266,12 +268,12 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     const defaultSplitPercentages = Object.fromEntries(Object.entries(homeDefaultPercs).map(([k,v]) => [k, parseFloat(v as string)||0]));
     await updateApartmentConfig({ name, address, rentCost: rent, rentCurrency: currency, rentExchangeRate: exchangeRate, maintenanceCost: maintenance, defaultSplitType: homeDefaultSplit, defaultSplitPercentages });
 
-    // Sync matching bills
-    const rentBill = bills.find(b => b.name.toLowerCase().includes('alquiler'));
+    // Sync matching bills (solo de hogar: ver configManagedBillKind)
+    const rentBill = bills.find(b => configManagedBillKind(b) === 'alquiler');
     if (rentBill) {
       await updateBill({ ...rentBill, amount: rent, currency, exchangeRate: currency === 'USD' ? exchangeRate : 1 });
     }
-    const maintBill = bills.find(b => b.name.toLowerCase().includes('mantenimiento'));
+    const maintBill = bills.find(b => configManagedBillKind(b) === 'mantenimiento');
     if (maintBill) {
       await updateBill({ ...maintBill, amount: maintenance, currency: 'PEN', exchangeRate: 1 });
     }
@@ -888,6 +890,27 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                 <ChevronRight size={16} className="text-zinc-300" />
               </button>
 
+              <button
+                type="button"
+                onClick={() => setRecurrentsOpen(true)}
+                className="w-full rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex items-center justify-between px-4 py-3.5 text-left active:bg-zinc-50 dark:active:bg-zinc-800 transition"
+              >
+                <div className="flex items-center gap-2.5">
+                  <RefreshCw size={16} className="text-zinc-400" />
+                  <div>
+                    <span className="block text-[14px] font-medium text-zinc-700 dark:text-zinc-300">Recurrentes</span>
+                    <span className="block text-[12px] text-zinc-400 dark:text-zinc-500">
+                      {(() => {
+                        const active = bills.filter(b => !b.deletedAt);
+                        const personal = active.filter(b => b.macroCategory === 'personal').length;
+                        return `${active.length - personal} de hogar · ${personal} personales`;
+                      })()}
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight size={16} className="text-zinc-300" />
+              </button>
+
               {/* Configuración del depa */}
               <div className="rounded-2xl border border-zinc-100 dark:border-zinc-800 overflow-hidden bg-white dark:bg-zinc-900">
                 <button type="button" onClick={() => setHomeConfigOpen(o => !o)}
@@ -1106,6 +1129,19 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
           onRename={renameCategory}
           onDelete={deleteCategory}
           onClose={() => setCategoriesOpen(null)}
+        />
+      )}
+
+      {recurrentsOpen && (
+        <RecurrentsScreen
+          bills={bills}
+          roommates={roommates}
+          hogarCategories={hogarCategories}
+          personalCategories={personalCategories}
+          defaultExchangeRate={rentExchangeRate}
+          onUpdate={updateBill}
+          onDelete={deleteRecurrent}
+          onClose={() => setRecurrentsOpen(false)}
         />
       )}
 

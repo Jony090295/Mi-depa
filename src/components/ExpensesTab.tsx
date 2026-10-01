@@ -247,8 +247,8 @@ export default function ExpensesTab({
     if (prefilledBillId && bills.length > 0) {
       const selectedBill = bills.find(b => b.id === prefilledBillId);
       if (selectedBill) {
-        // Un recurrente siempre es gasto de hogar (ver el cargador de abajo)
-        setMacroCategory('hogar');
+        // El modo lo decide el recurrente: hogar o personal (del propio usuario)
+        setMacroCategory(selectedBill.macroCategory ?? 'hogar');
         setAssociatedBillId(selectedBill.id);
         setTitle(`${selectedBill.name}`);
         setCategory(selectedBill.category || 'servicio');
@@ -286,6 +286,10 @@ export default function ExpensesTab({
   // categoría huérfana. Se compara con la lista anterior para distinguir:
   // renombrar = sale una y entra otra en su lugar; eliminar = solo sale.
   const activeCats = macroCategory === 'hogar' ? hogarCategories : personalCategories;
+
+  // Recurrentes que se pueden cargar en el modo actual: los de hogar en
+  // hogar, los propios en personal. Los borrados (deletedAt) no se ofrecen.
+  const availableBills = bills.filter(b => !b.deletedAt && (b.macroCategory ?? 'hogar') === macroCategory);
   const prevCatsRef = useRef<string[]>(activeCats);
   React.useEffect(() => {
     const prev = prevCatsRef.current;
@@ -444,10 +448,10 @@ export default function ExpensesTab({
         recurrentBillMonth: associatedBillId ? recurrentBillMonth : undefined,
         receiptImage,
       };
-      // If marked as recurring, create a bill entry too
-      // Nunca crear un recurrente desde un gasto personal: bills es visible
-      // para todo el depa. La UI ya lo impide; esto cubre cualquier otro camino.
-      if (isRecurring && onAddBill && macroCategory === 'hogar') {
+      // Marcado como recurrente: guardar también la plantilla. Hereda el modo
+      // del gasto; un recurrente personal solo lo ve quien lo paga (la base
+      // lo exige — ver supabase/personal_recurrents.sql).
+      if (isRecurring && onAddBill) {
         const newBill: RecurrentBill = {
           id: crypto.randomUUID(),
           name: title.trim(),
@@ -459,8 +463,9 @@ export default function ExpensesTab({
           alertSent: false,
           splitType,
           splits: splitsRecord,
-          paidBy: expensePaidBy,
+          paidBy: macroCategory === 'personal' ? currentRoommateId : expensePaidBy,
           category,
+          macroCategory,
           createdAt: new Date().toISOString().slice(0, 7),
         };
         await onAddBill(newBill);
@@ -1149,10 +1154,10 @@ export default function ExpensesTab({
                 onClick={() => showPayerDropdown && setShowPayerDropdown(false)}
               >
 
-                {/* Cargar desde recurrente — solo en hogar: un recurrente es del depa,
-                    trae su propio pagador y categoría de hogar, y metido en un
-                    gasto personal dejaría como pagador a otro roommate. */}
-                {bills.length > 0 && !editingExpenseId && macroCategory === 'hogar' && (
+                {/* Cargar desde recurrente: solo los del modo actual. Un recurrente
+                    de hogar trae su propio pagador; cargado en un gasto personal
+                    dejaría como pagador a otro roommate. */}
+                {availableBills.length > 0 && !editingExpenseId && (
                   <div>
                     {!associatedBillId ? (
                       <button type="button" onClick={() => setShowRecurringPicker(p => !p)}
@@ -1196,7 +1201,7 @@ export default function ExpensesTab({
                           style={{ border: '1px solid rgba(80,80,120,0.12)' }}
                         >
                           <option value="">— Elegir gasto recurrente —</option>
-                          {bills.map(b => <option key={b.id} value={b.id}>{b.name} ({b.currency === 'USD' ? '$' : 'S/'} {b.amount})</option>)}
+                          {availableBills.map(b => <option key={b.id} value={b.id}>{b.name} ({b.currency === 'USD' ? '$' : 'S/'} {b.amount})</option>)}
                         </select>
                       </div>
                     )}
@@ -1277,8 +1282,12 @@ export default function ExpensesTab({
                           setActionError('');
                           setShowNewCatInput(false);
                           setNewCatName('');
+                          // Un recurrente cargado pertenece al modo anterior
+                          if (val !== macroCategory && associatedBillId) {
+                            setAssociatedBillId('');
+                            setShowRecurringPicker(false);
+                          }
                           if (val === 'personal') {
-                            setIsRecurring(false);
                             setPaidBy(currentRoommateId!);
                             setCategory(personalCategories[0] ?? 'otros');
                             setSplitType('porcentaje');
@@ -1534,10 +1543,8 @@ export default function ExpensesTab({
                     )}
                   </div>
 
-                  {/* Recurrente — solo hogar. Los recurrentes son del depa y no tienen
-                      noción de "personal": guardar uno desde un gasto personal
-                      lo publicaba, con nombre y monto, a todos los roommates. */}
-                  {macroCategory === 'hogar' && (!editingExpenseId && !associatedBillId ? (
+                  {/* Recurrente */}
+                  {!editingExpenseId && !associatedBillId ? (
                     <button type="button" onClick={() => setIsRecurring(r => !r)}
                       className="flex-1 flex items-center gap-2 h-[52px] px-3 rounded-2xl transition active:scale-[0.98]"
                       style={isRecurring
@@ -1557,7 +1564,7 @@ export default function ExpensesTab({
                     <div className="flex-1 h-[52px] rounded-2xl bg-white flex items-center px-3" style={{ border: '1px solid rgba(80,80,120,0.08)' }}>
                       <span className="text-[12px]" style={{ color: '#8D90A5' }}>Vinculado a recurrente</span>
                     </div>
-                  ))}
+                  )}
                 </div>
 
               </form>

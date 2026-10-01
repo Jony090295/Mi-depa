@@ -61,6 +61,8 @@ export interface VariableReminder {
 }
 
 export interface RecurrentBill {
+  /** 'personal' = solo lo ve quien lo paga (paidBy). Sin valor = hogar. */
+  macroCategory?: 'hogar' | 'personal';
   id: string;
   name: string; // luz, agua, telefono, internet, alquiler, etc.
   amount: number;
@@ -81,6 +83,8 @@ export interface RecurrentBill {
 }
 
 export interface RecurrentBillHistory {
+  /** 'personal' = solo lo ve quien lo paga (paidBy). Sin valor = hogar. */
+  macroCategory?: 'hogar' | 'personal';
   id: string;
   billId: string;
   name: string;

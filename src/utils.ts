@@ -15,6 +15,21 @@ export const CATEGORY_LABELS: Record<string, { label: string; icon: string; bg: 
   deporte:   { label: "Deporte",           icon: "Dumbbell",     bg: "bg-orange-50 dark:bg-orange-950/40", text: "text-orange-600 dark:text-orange-400" },
 };
 
+/**
+ * Recurrentes cuyo monto lo controla "Configuración del depa": al guardarla,
+ * App reescribe el monto del recurrente de alquiler y del de mantenimiento.
+ * Solo los de hogar — un personal llamado "Alquiler de cochera" no es el
+ * alquiler del depa. Ver handleUpdateApartmentNameAndRent.
+ */
+export function configManagedBillKind(bill: { name: string; macroCategory?: string; deletedAt?: string }):
+  'alquiler' | 'mantenimiento' | null {
+  if (bill.macroCategory === 'personal' || bill.deletedAt) return null;
+  const n = bill.name.toLowerCase();
+  if (n.includes('alquiler')) return 'alquiler';
+  if (n.includes('mantenimiento')) return 'mantenimiento';
+  return null;
+}
+
 export function getCategoryLabel(cat: string): string {
   return CATEGORY_LABELS[cat]?.label ?? cat.charAt(0).toUpperCase() + cat.slice(1);
 }

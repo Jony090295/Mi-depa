@@ -53,6 +53,7 @@ function rowToBill(r: any): RecurrentBill {
     currency: r.currency ?? 'PEN', exchangeRate: r.exchange_rate ?? 1,
     category: r.category ?? 'servicio', isAutoDebit: r.is_auto_debit ?? false,
     deletedAt: r.deleted_at ?? undefined,
+    macroCategory: r.macro_category === 'personal' ? 'personal' : 'hogar',
   };
 }
 
@@ -65,6 +66,7 @@ function rowToHistory(r: any): RecurrentBillHistory {
     exchangeRate: r.exchange_rate ?? 1, monthPaidFor: r.month_paid_for,
     datePaid: r.date_paid, status: r.status ?? 'pagado',
     category: r.category ?? undefined, isAutoDebit: r.is_auto_debit ?? undefined,
+    macroCategory: r.macro_category === 'personal' ? 'personal' : 'hogar',
   };
 }
 
@@ -320,6 +322,7 @@ export function useApartmentData(user: User) {
       splits: bill.splits ?? null, associated_expense_id: bill.associatedExpenseId ?? null,
       currency: bill.currency ?? 'PEN', exchange_rate: bill.exchangeRate ?? 1,
       category: bill.category ?? 'servicio', is_auto_debit: bill.isAutoDebit ?? false,
+      macro_category: bill.macroCategory ?? 'hogar',
     }).select('id').single();
     throwIfSupabaseError(error, 'No se pudo guardar la plantilla recurrente.');
     setBills(prev => [...prev, bill]);
@@ -335,17 +338,34 @@ export function useApartmentData(user: User) {
       currency: bill.currency ?? 'PEN', exchange_rate: bill.exchangeRate ?? 1,
       category: bill.category ?? 'servicio', is_auto_debit: bill.isAutoDebit ?? false,
       deleted_at: bill.deletedAt ?? null,
+      macro_category: bill.macroCategory ?? 'hogar',
     }).eq('id', bill.id).select('id').single();
     throwIfSupabaseError(error, 'No se pudo actualizar la plantilla recurrente.');
     setBills(prev => prev.map(b => b.id === bill.id ? bill : b));
   };
 
+  /** Borra la fila. Su historial (bill_history) cae en cascada. */
   const removeBill = async (id: string) => {
-    // Soft-delete: mark as deleted rather than hard-delete (preserve history)
     requireApartmentId(apartmentId);
     const { error } = await supabase.from('bills').delete().eq('id', id).select('id').single();
     throwIfSupabaseError(error, 'No se pudo eliminar la plantilla recurrente.');
     setBills(prev => prev.filter(b => b.id !== id));
+  };
+
+  /**
+   * Elimina un recurrente desde la pantalla de Recurrentes. Si tiene pagos
+   * registrados en bill_history se marca como borrado (deletedAt) para no
+   * perder ese historial por la cascada; si no, se borra de verdad.
+   * Las vistas ocultan los marcados.
+   */
+  const deleteRecurrent = async (id: string) => {
+    const bill = bills.find(b => b.id === id);
+    if (!bill) return;
+    if (billHistory.some(h => h.billId === id)) {
+      await updateBill({ ...bill, deletedAt: new Date().toISOString().slice(0, 7) });
+    } else {
+      await removeBill(id);
+    }
   };
 
   // ── Bill history handlers ─────────────────────────────────────────────────
@@ -361,6 +381,7 @@ export function useApartmentData(user: User) {
       exchange_rate: entry.exchangeRate ?? 1, month_paid_for: entry.monthPaidFor,
       date_paid: entry.datePaid, status: entry.status ?? 'pagado',
       category: entry.category ?? null, is_auto_debit: entry.isAutoDebit ?? null,
+      macro_category: entry.macroCategory ?? 'hogar',
     }).select('id').single();
     throwIfSupabaseError(error, 'No se pudo guardar el historial recurrente.');
     setBillHistory(prev => [entry, ...prev]);
@@ -381,6 +402,7 @@ export function useApartmentData(user: User) {
       currency: entry.currency ?? 'PEN', exchange_rate: entry.exchangeRate ?? 1,
       month_paid_for: entry.monthPaidFor, date_paid: entry.datePaid,
       status: entry.status ?? 'pagado',
+      macro_category: entry.macroCategory ?? 'hogar',
     }).eq('id', entry.id).select('id').single();
     throwIfSupabaseError(error, 'No se pudo actualizar el historial recurrente.');
     setBillHistory(prev => prev.map(h => h.id === entry.id ? entry : h));
@@ -495,20 +517,26 @@ export function useApartmentData(user: User) {
     setManagedPersonalCategories(safe);
   };
 
-  /** ¿Esta fila de gasto pertenece a la lista `macro` del usuario actual? */
-  const expenseInScope = (e: Expense, macro: 'hogar' | 'personal', myId?: string) => {
-    const isPersonal = e.macroCategory === 'personal';
-    return macro === 'personal' ? (isPersonal && e.paidBy === myId) : !isPersonal;
+  /**
+   * ¿Esta fila (gasto, recurrente o pago de recurrente) pertenece a la lista
+   * `macro` del usuario actual? Personal = solo las que paga uno mismo.
+   */
+  const inScope = (
+    row: { macroCategory?: string; paidBy?: string },
+    macro: 'hogar' | 'personal',
+    myId?: string,
+  ) => {
+    const isPersonal = row.macroCategory === 'personal';
+    return macro === 'personal' ? (isPersonal && row.paidBy === myId) : !isPersonal;
   };
 
   /** Cuántos gastos, recurrentes y pagos de recurrentes usan una categoría. */
   const categoryUsage = (cat: string, macro: 'hogar' | 'personal'): number => {
     const myId = roommates.find(r => r.userId === user.id)?.id;
-    const exp = expenses.filter(e => e.category === cat && expenseInScope(e, macro, myId)).length;
-    if (macro === 'personal') return exp;
-    return exp
-      + bills.filter(b => b.category === cat).length
-      + billHistory.filter(h => h.category === cat).length;
+    // El historial de pagos no se cuenta: no se muestra en ningún lado, así
+    // que contarlo daba usos fantasma. Igual se mueve al renombrar.
+    return expenses.filter(e => e.category === cat && inScope(e, macro, myId)).length
+      + bills.filter(b => !b.deletedAt && b.category === cat && inScope(b, macro, myId)).length;
   };
 
   /**
@@ -543,25 +571,29 @@ export function useApartmentData(user: User) {
     }
     throwIfSupabaseError(expErr, 'No se pudieron actualizar los gastos de esa categoría.');
 
-    // Los recurrentes y su historial son del depa, así que solo aplican a hogar.
-    if (macro === 'hogar') {
-      const { error: billErr } = await supabase
-        .from('bills').update({ category: to }).eq('apartment_id', aptId).eq('category', from);
-      throwIfSupabaseError(billErr, 'No se pudieron actualizar los gastos recurrentes.');
-
-      const { error: histErr } = await supabase
-        .from('bill_history').update({ category: to }).eq('apartment_id', aptId).eq('category', from);
-      throwIfSupabaseError(histErr, 'No se pudo actualizar el historial de recurrentes.');
+    // Recurrentes y su historial, con el mismo alcance que los gastos: ahora
+    // también hay personales, y "auto", "comida" y "otros" existen en ambas
+    // listas — sin filtrar, renombrar la de hogar tocaría tus personales.
+    for (const table of ['bills', 'bill_history'] as const) {
+      const q = supabase.from(table).update({ category: to }).eq('apartment_id', aptId).eq('category', from);
+      const { error } = macro === 'personal'
+        ? await q.eq('macro_category', 'personal').eq('paid_by', myId!)
+        : await q.or('macro_category.is.null,macro_category.neq.personal');
+      throwIfSupabaseError(error, table === 'bills'
+        ? 'No se pudieron actualizar los gastos recurrentes.'
+        : 'No se pudo actualizar el historial de recurrentes.');
     }
 
     // Reflejar en memoria, con el mismo alcance que los UPDATE
     setExpenses(prev => prev.map(e =>
-      e.category === from && expenseInScope(e, macro, myId) ? { ...e, category: to } : e
+      e.category === from && inScope(e, macro, myId) ? { ...e, category: to } : e
     ));
-    if (macro === 'hogar') {
-      setBills(prev => prev.map(b => b.category === from ? { ...b, category: to } : b));
-      setBillHistory(prev => prev.map(h => h.category === from ? { ...h, category: to } : h));
-    }
+    setBills(prev => prev.map(b =>
+      b.category === from && inScope(b, macro, myId) ? { ...b, category: to } : b
+    ));
+    setBillHistory(prev => prev.map(h =>
+      h.category === from && inScope(h, macro, myId) ? { ...h, category: to } : h
+    ));
   };
 
   /** Renombra una categoría y arrastra todo lo que la usa. */
@@ -650,7 +682,7 @@ export function useApartmentData(user: User) {
     addSettlement,
     customHogarCategories, customPersonalCategories,
     addHogarCategory, addPersonalCategory,
-    hogarCategories, personalCategories, setHogarCategories, setPersonalCategories, renameCategory, deleteCategory, categoryUsage,
+    hogarCategories, personalCategories, setHogarCategories, setPersonalCategories, renameCategory, deleteCategory, categoryUsage, deleteRecurrent,
     addPost, updatePost, deletePost, addReply,
     addTrustedService, updateTrustedService, deleteTrustedService,
     reload: loadAll,
