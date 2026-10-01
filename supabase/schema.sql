@@ -45,6 +45,12 @@ CREATE TABLE apartments (
   default_split_type        text,
   default_split_percentages jsonb,
   onboarding_complete       boolean,
+  -- Lista COMPLETA de categorías de hogar (agregado 2026-10-01 con
+  -- editable_categories.sql). NULL = nunca se editó: la app usa los
+  -- defaults + custom_hogar_categories.
+  hogar_categories          text[],
+  -- LEGACY: solo los extras sobre los defaults fijos. Se lee como respaldo
+  -- mientras hogar_categories sea NULL; ya no se escribe.
   custom_hogar_categories   text[]
 );
 
@@ -69,6 +75,10 @@ CREATE TABLE roommates (
   sort_order                 int DEFAULT 0,
   created_at                 timestamptz DEFAULT now(),
   user_id                    uuid REFERENCES auth.users(id),
+  -- Lista COMPLETA de categorías personales de este roommate. Misma lógica
+  -- que apartments.hogar_categories: NULL = usa defaults + la legacy.
+  personal_categories        text[],
+  -- LEGACY: ver custom_hogar_categories.
   custom_personal_categories text[]
 );
 
@@ -384,3 +394,27 @@ CREATE POLICY "trusted delete" ON trusted_services FOR DELETE USING (user_id = a
 -- se permite leer y responder, pero no editar ni borrar.
 CREATE POLICY "forum_replies read"   ON forum_replies FOR SELECT USING (auth.uid() IS NOT NULL);
 CREATE POLICY "forum_replies insert" ON forum_replies FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+
+
+-- ════════════════════════════════════════════════════════════
+-- STORAGE — bucket de recibos
+-- ════════════════════════════════════════════════════════════
+--
+-- Bucket `receipts`: PRIVADO, máx. 5 MB, solo image/jpeg|png|webp.
+-- La app pide URLs firmadas de 1 hora para mostrarlos.
+--
+-- Rutas:
+--   {apartment_id}/hogar/{uuid}.jpg                  → cualquier miembro
+--   {apartment_id}/personal/{roommate_id}/{uuid}.jpg → solo ese roommate
+--   {apartment_id}/{uuid}.jpg   (LEGACY, antes de 2026-10-01)
+--        → visible solo si hay un gasto que apunte a ese archivo y que el
+--          usuario pueda ver. Los 9 recibos migrados en agosto viven aquí.
+--
+-- Antes de la separación hogar/personal, todo iba bajo {apartment_id}/ y
+-- cualquier miembro podía leer la foto de un gasto personal ajeno, aunque
+-- la fila del gasto ya fuera privada.
+--
+-- Políticas: receipts read / receipts insert / receipts delete sobre
+-- storage.objects. INSERT no acepta rutas legacy. Definición completa y
+-- vigente en supabase/active_privacy_hardening.sql (aplicado 2026-10-01).
+
