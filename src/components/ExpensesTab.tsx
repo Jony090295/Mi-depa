@@ -243,6 +243,8 @@ export default function ExpensesTab({
     if (prefilledBillId && bills.length > 0) {
       const selectedBill = bills.find(b => b.id === prefilledBillId);
       if (selectedBill) {
+        // Un recurrente siempre es gasto de hogar (ver el cargador de abajo)
+        setMacroCategory('hogar');
         setAssociatedBillId(selectedBill.id);
         setTitle(`${selectedBill.name}`);
         setCategory(selectedBill.category || 'servicio');
@@ -275,9 +277,14 @@ export default function ExpensesTab({
     }
   }, [roommates]);
 
+  // Un gasto personal solo puede ser de uno mismo (la base lo exige). Vigila
+  // también paidBy, no solo el modo: si algún camino lo cambia estando en
+  // personal, se corrige en vez de llegar a la base y fallar.
   React.useEffect(() => {
-    if (currentRoommateId && macroCategory === 'personal') setPaidBy(currentRoommateId);
-  }, [currentRoommateId, macroCategory]);
+    if (currentRoommateId && macroCategory === 'personal' && paidBy !== currentRoommateId) {
+      setPaidBy(currentRoommateId);
+    }
+  }, [currentRoommateId, macroCategory, paidBy]);
 
   const handlePercentageChange = (roommateId: string, value: string) => {
     setCustomPercentages((prev) => ({
@@ -418,7 +425,9 @@ export default function ExpensesTab({
         receiptImage,
       };
       // If marked as recurring, create a bill entry too
-      if (isRecurring && onAddBill) {
+      // Nunca crear un recurrente desde un gasto personal: bills es visible
+      // para todo el depa. La UI ya lo impide; esto cubre cualquier otro camino.
+      if (isRecurring && onAddBill && macroCategory === 'hogar') {
         const newBill: RecurrentBill = {
           id: crypto.randomUUID(),
           name: title.trim(),
@@ -1133,8 +1142,10 @@ export default function ExpensesTab({
                 onClick={() => showPayerDropdown && setShowPayerDropdown(false)}
               >
 
-                {/* Cargar desde recurrente */}
-                {bills.length > 0 && !editingExpenseId && (
+                {/* Cargar desde recurrente — solo en hogar: un recurrente es del depa,
+                    trae su propio pagador y categoría de hogar, y metido en un
+                    gasto personal dejaría como pagador a otro roommate. */}
+                {bills.length > 0 && !editingExpenseId && macroCategory === 'hogar' && (
                   <div>
                     {!associatedBillId ? (
                       <button type="button" onClick={() => setShowRecurringPicker(p => !p)}
@@ -1260,6 +1271,7 @@ export default function ExpensesTab({
                           setShowNewCatInput(false);
                           setNewCatName('');
                           if (val === 'personal') {
+                            setIsRecurring(false);
                             setPaidBy(currentRoommateId!);
                             setCategory(personalCategories[0] ?? 'otros');
                             setSplitType('porcentaje');
@@ -1504,8 +1516,10 @@ export default function ExpensesTab({
                     )}
                   </div>
 
-                  {/* Recurrente */}
-                  {!editingExpenseId && !associatedBillId ? (
+                  {/* Recurrente — solo hogar. Los recurrentes son del depa y no tienen
+                      noción de "personal": guardar uno desde un gasto personal
+                      lo publicaba, con nombre y monto, a todos los roommates. */}
+                  {macroCategory === 'hogar' && (!editingExpenseId && !associatedBillId ? (
                     <button type="button" onClick={() => setIsRecurring(r => !r)}
                       className="flex-1 flex items-center gap-2 h-[52px] px-3 rounded-2xl transition active:scale-[0.98]"
                       style={isRecurring
@@ -1525,7 +1539,7 @@ export default function ExpensesTab({
                     <div className="flex-1 h-[52px] rounded-2xl bg-white flex items-center px-3" style={{ border: '1px solid rgba(80,80,120,0.08)' }}>
                       <span className="text-[12px]" style={{ color: '#8D90A5' }}>Vinculado a recurrente</span>
                     </div>
-                  )}
+                  ))}
                 </div>
 
               </form>
