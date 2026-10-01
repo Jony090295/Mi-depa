@@ -251,6 +251,48 @@ export function calculateSettlements(
   return [...penSettlements, ...usdSettlements];
 }
 
+/**
+ * Junta las deudas de cada moneda en una sola, en soles.
+ *
+ * calculateSettlements calcula soles y dólares por separado, así que dos
+ * roommates pueden deberse en sentidos opuestos ("Jony → Vale S/ 268" y
+ * "Vale → Jony $ 381") sin que nada los compense. Esto convierte los dólares
+ * y devuelve las transferencias mínimas en soles.
+ *
+ * Usa un solo tipo de cambio (el de Configuración del depa), no el de cada
+ * gasto: es lo que alguien pagaría hoy si salda en soles una deuda en
+ * dólares. Las deudas por moneda siguen siendo la fuente de verdad: esto es
+ * solo el resumen, y se paga desde el detalle.
+ */
+export function netSettlementsInSoles(settlements: Settlement[], usdToPen: number): Settlement[] {
+  // Las transferencias de cada moneda conservan el neto de cada persona, así
+  // que sumarlas (convertidas) da el neto combinado.
+  const net: Record<string, number> = {};
+  for (const s of settlements) {
+    const v = s.currency === 'USD' ? s.amount * usdToPen : s.amount;
+    net[s.from] = (net[s.from] ?? 0) - v;
+    net[s.to]   = (net[s.to]   ?? 0) + v;
+  }
+
+  const creditors = Object.entries(net).filter(([, v]) => v > 0.01).map(([id, v]) => ({ id, amount: v }));
+  const debtors   = Object.entries(net).filter(([, v]) => v < -0.01).map(([id, v]) => ({ id, amount: -v }));
+  creditors.sort((a, b) => b.amount - a.amount);
+  debtors.sort((a, b) => b.amount - a.amount);
+
+  const out: Settlement[] = [];
+  let i = 0, j = 0;
+  while (i < debtors.length && j < creditors.length) {
+    const pay = Math.min(debtors[i].amount, creditors[j].amount);
+    const rounded = Math.round(pay * 100) / 100;
+    if (rounded > 0.01) out.push({ from: debtors[i].id, to: creditors[j].id, amount: rounded, currency: 'PEN' });
+    debtors[i].amount -= pay;
+    creditors[j].amount -= pay;
+    if (debtors[i].amount < 0.01) i++;
+    if (creditors[j].amount < 0.01) j++;
+  }
+  return out;
+}
+
 export const INITIAL_BILL_HISTORY: RecurrentBillHistory[] = [
   {
     id: "h1",

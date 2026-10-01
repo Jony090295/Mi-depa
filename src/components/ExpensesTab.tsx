@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Roommate, Expense, ExpenseCategory, SplitType, RecurrentBill, SettlementRecord } from '../types';
-import { CATEGORY_LABELS, getCategoryLabel, inferCategoryFromName } from '../utils';
+import { CATEGORY_LABELS, getCategoryLabel, inferCategoryFromName, netSettlementsInSoles } from '../utils';
 import { uploadReceipt, useReceiptUrl } from '../lib/receipts';
 import { categoryIcon } from '../lib/categoryIcons';
 import { calculateSettlements } from '../utils';
@@ -23,6 +23,8 @@ interface ExpensesTabProps {
   onAddPersonalCategory?: (name: string) => Promise<void>;
   /** Abre la pantalla de categorías encima del formulario, sin desmontarlo. */
   onManageCategories?: (macro: 'hogar' | 'personal') => void;
+  /** Tipo de cambio de Configuración del depa, para el total en soles. */
+  usdToPen?: number;
   prefilledBillId?: string;
   onClearPrefilledBillId?: () => void;
   settlementHistory?: SettlementRecord[];
@@ -49,6 +51,7 @@ export default function ExpensesTab({
   onAddHogarCategory,
   onAddPersonalCategory,
   onManageCategories,
+  usdToPen = 3.8,
   prefilledBillId,
   onClearPrefilledBillId,
   settlementHistory = [],
@@ -78,7 +81,12 @@ export default function ExpensesTab({
   const [isFormExpanded, setIsFormExpanded] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [settlingIndex, setSettlingIndex] = useState<number | null>(null);
+  // La deuda que se está confirmando, identificada por quién→quién y moneda,
+  // NO por su posición: al pagar, la lista se achica y un índice pasaba a
+  // apuntar a otra deuda — o a ninguna, y la pantalla quedaba en blanco.
+  const [settlingKey, setSettlingKey] = useState<string | null>(null);
+  const settleKey = (s: { from: string; to: string; currency: string }) => `${s.from}>${s.to}:${s.currency}`;
+  const [showCurrencyDetail, setShowCurrencyDetail] = useState(false);
   const [showAllBreakdown, setShowAllBreakdown] = useState<Record<number, boolean>>({});
   const [associatedBillId, setAssociatedBillId] = useState('');
   const [recurrentBillMonth, setRecurrentBillMonth] = useState('');
@@ -160,13 +168,13 @@ export default function ExpensesTab({
       toId: sett.to,
       amount: parseFloat(sett.amount.toFixed(2)),
       currency: sett.currency,
-      exchangeRate: sett.exchangeRate || 1,
+      exchangeRate: sett.currency === 'USD' ? usdToPen : 1,
       date: new Date().toISOString().split('T')[0],
     };
     setActionError('');
     try {
       await onAddSettlement(record);
-      setSettlingIndex(null);
+      setSettlingKey(null);
       const debtorName = resolvedAllRoommates.find((r) => r.id === sett.from)?.name || 'Inquilino';
       const creditorName = resolvedAllRoommates.find((r) => r.id === sett.to)?.name || 'Inquilino';
       setSuccessMsg(`¡Liquidación de ${sett.currency === 'USD' ? '$' : 'S/.'} ${sett.amount.toFixed(2)} registrada (${debtorName} → ${creditorName})!`);
@@ -608,21 +616,15 @@ export default function ExpensesTab({
 
   const settlements = calculateSettlements(expenses, roommates, settlementHistory);
 
-  // Net balance per roommate
-  const netBalances: Record<string, number> = {};
-  roommates.forEach(r => { netBalances[r.id] = 0; });
-  expenses.forEach(exp => {
-    const rate = exp.currency === 'USD' ? (exp.exchangeRate || 3.80) : 1;
-    const paid = exp.amount * rate;
-    roommates.forEach(r => {
-      const share = (exp.calculatedShares?.[r.id] || 0) * rate;
-      if (r.id === exp.paidBy) {
-        netBalances[r.id] = (netBalances[r.id] || 0) + (paid - share);
-      } else {
-        netBalances[r.id] = (netBalances[r.id] || 0) - share;
-      }
-    });
-  });
+  // Con deudas en soles y en dólares a la vez, el resumen es un total en
+  // soles (ver netSettlementsInSoles) y las deudas por moneda pasan a un
+  // detalle desplegable, que es desde donde se paga.
+  const multiCurrency = new Set(settlements.map(s => s.currency)).size > 1;
+  // Un tipo de cambio se escribe con hasta 3 decimales (3.795). toFixed(2) lo
+  // mostraba como 3.79 mientras el cálculo usaba 3.795, y la cuenta a mano
+  // no cuadraba.
+  const tcLabel = usdToPen.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 3 });
+  const solesTotal = netSettlementsInSoles(settlements, usdToPen);
 
   // Export PDF
   const handleExportPDF = () => {
@@ -822,12 +824,12 @@ export default function ExpensesTab({
             {/* Balance summary row */}
             <div className="px-4 pt-4 pb-3 border-b border-black/5">
               <p className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: '#7C5CFC', opacity: 0.7 }}>Balances pendientes</p>
-              <div className="flex flex-col gap-3">
-                {settlements.map((sett, idx) => {
+              {(() => {
+                const debtRow = (sett: typeof settlements[number], key: string | number, payable: boolean) => {
                   const debtor = resolvedAllRoommates.find(r => r.id === sett.from);
                   const creditor = resolvedAllRoommates.find(r => r.id === sett.to);
                   return (
-                    <div key={idx} className="flex items-center justify-between w-full gap-2">
+                    <div key={key} className="flex items-center justify-between w-full gap-2">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0" style={{ background: debtor?.color ?? '#6366F1' }}>{debtor?.name?.[0]}</span>
                         <span className="text-[14px] font-semibold truncate" style={{ color: debtor?.color }}>{debtor?.name}</span>
@@ -839,23 +841,54 @@ export default function ExpensesTab({
                         <span className="text-[16px] font-bold tabular-nums" style={{ color: '#E53E3E' }}>
                           {sett.currency === 'USD' ? '$' : 'S/'}{sett.amount.toFixed(2)}
                         </span>
-                        <button type="button"
-                          onClick={() => setSettlingIndex(settlingIndex === idx ? null : idx)}
-                          className="h-7 px-3 rounded-full text-white text-[12px] font-semibold active:scale-95 transition" style={{ background: '#4B32E6' }}>
-                          Pagar
-                        </button>
+                        {payable && (
+                          <button type="button"
+                            onClick={() => setSettlingKey(settlingKey === settleKey(sett) ? null : settleKey(sett))}
+                            className="h-7 px-3 rounded-full text-white text-[12px] font-semibold active:scale-95 transition" style={{ background: '#4B32E6' }}>
+                            Pagar
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
-                })}
-              </div>
+                };
+
+                if (!multiCurrency) {
+                  return <div className="flex flex-col gap-3">{settlements.map(s => debtRow(s, settleKey(s), true))}</div>;
+                }
+
+                return (
+                  <>
+                    <div className="flex flex-col gap-3">
+                      {solesTotal.length > 0
+                        ? solesTotal.map((s, i) => debtRow(s, `t${i}`, false))
+                        : <p className="text-[13px] font-semibold text-emerald-700">En soles quedan a mano</p>}
+                    </div>
+                    <p className="text-[11px] mt-2" style={{ color: '#7C5CFC', opacity: 0.75 }}>
+                      Total en soles, con los dólares a S/ {tcLabel}. Para pagar, abre el detalle.
+                    </p>
+                    <button type="button" onClick={() => setShowCurrencyDetail(v => !v)}
+                      aria-expanded={showCurrencyDetail}
+                      className="mt-3 w-full flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest" style={{ color: '#7C5CFC', opacity: 0.7 }}>
+                      Detalle por moneda
+                      <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold text-white" style={{ background: '#4B32E6' }}>{settlements.length}</span>
+                      <ChevronDown size={12} className="ml-auto transition-transform" style={{ transform: showCurrencyDetail ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                    </button>
+                    {showCurrencyDetail && (
+                      <div className="flex flex-col gap-3 mt-3 pt-3 border-t border-black/5 animate-fadeIn">
+                        {settlements.map(s => debtRow(s, settleKey(s), true))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* Confirmar liquidación */}
-            {settlingIndex !== null && (
+            {settlingKey !== null && settlements.some(s => settleKey(s) === settlingKey) && (
               <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 animate-fadeIn">
                 {(() => {
-                  const sett = settlements[settlingIndex];
+                  const sett = settlements.find(s => settleKey(s) === settlingKey)!;
                   const debtor = resolvedAllRoommates.find(r => r.id === sett.from);
                   const creditor = resolvedAllRoommates.find(r => r.id === sett.to);
                   return (
@@ -863,12 +896,17 @@ export default function ExpensesTab({
                       <p className="text-[12px] text-zinc-600 dark:text-zinc-400">
                         ¿Confirmar que <strong style={{ color: debtor?.color }}>{debtor?.name}</strong> pagó <strong className="text-zinc-900 dark:text-zinc-100">{sett.currency === 'USD' ? '$' : 'S/'}{sett.amount.toFixed(2)}</strong> a <strong style={{ color: creditor?.color }}>{creditor?.name}</strong>?
                       </p>
+                      {sett.currency === 'USD' && (
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                          Si lo pagan en soles: S/ {(sett.amount * usdToPen).toFixed(2)} (a S/ {tcLabel} por dólar).
+                        </p>
+                      )}
                       <div className="flex gap-2">
                         <button type="button" onClick={() => handleSettle(sett)}
                           className="flex-1 h-9 bg-emerald-600 text-white font-semibold text-[13px] rounded-xl transition active:scale-[0.98] flex items-center justify-center gap-1.5">
                           <Check size={13} /> Confirmar
                         </button>
-                        <button type="button" onClick={() => setSettlingIndex(null)}
+                        <button type="button" onClick={() => setSettlingKey(null)}
                           className="h-9 px-4 bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 text-[13px] font-medium rounded-xl">
                           Cancelar
                         </button>
@@ -968,9 +1006,15 @@ export default function ExpensesTab({
 
                         {/* Amount + payer */}
                         <div className="text-right shrink-0">
+                          {/* La moneda en que se pagó, que es la que dice el recibo
+                              y el estado de cuenta. Reportes y Límites convierten a
+                              soles con el tipo de cambio de este mismo gasto. */}
                           <p className="text-[15px] font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">
-                            S/ {soles.toFixed(2)}
+                            {expense.currency === 'USD' ? '$' : 'S/'} {expense.amount.toFixed(2)}
                           </p>
+                          {expense.currency === 'USD' && (
+                            <p className="text-[11px] text-zinc-400 tabular-nums">≈ S/ {soles.toFixed(2)}</p>
+                          )}
                           {payer && (
                             <p className="text-[11px] font-semibold mt-0.5" style={{ color: payer.color }}>
                               Pagó {payer.name}
@@ -988,14 +1032,13 @@ export default function ExpensesTab({
                               {roommates.map(r => {
                                 const share = expense.calculatedShares?.[r.id] || 0;
                                 if (share <= 0) return null;
-                                const shareRate = expense.currency === 'USD' ? (expense.exchangeRate || 3.8) : 1;
                                 return (
                                   <div key={r.id} className="flex items-center justify-between text-[12px]">
                                     <div className="flex items-center gap-1.5">
                                       <div className="w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold shrink-0" style={{ background: r.color }}>{r.name.charAt(0)}</div>
                                       <span className="text-zinc-600 dark:text-zinc-400">{r.name}</span>
                                     </div>
-                                    <span className="font-mono font-semibold text-zinc-700 dark:text-zinc-300">S/ {(share * shareRate).toFixed(2)}</span>
+                                    <span className="font-mono font-semibold text-zinc-700 dark:text-zinc-300">{expense.currency === 'USD' ? '$' : 'S/'} {share.toFixed(2)}</span>
                                   </div>
                                 );
                               })}

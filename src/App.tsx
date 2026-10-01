@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { Roommate, Expense, RecurrentBill, RecurrentBillHistory, ForumPost, ForumReply, SettlementRecord, VariableReminder, HOGAR_DEFAULT_CATEGORIES, PERSONAL_DEFAULT_CATEGORIES } from './types';
-import { calculateSettlements, configManagedBillKind } from './utils';
+import { calculateSettlements, configManagedBillKind, netSettlementsInSoles } from './utils';
 
 // Auth + Supabase
 import { useAuth } from './hooks/useAuth';
@@ -611,8 +611,11 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     return sum + b.amount * rate;
   }, 0);
 
+  // Mismo número que el resumen de Gastos: con deudas en soles y dólares,
+  // contar las de cada moneda por separado daba "2 deudas" donde en realidad
+  // hay una sola compensada.
   const homeSettlements    = calculateSettlements(expenses, roommates, settlementHistory);
-  const pendingDebtsCount  = homeSettlements.length;
+  const pendingDebtsCount  = netSettlementsInSoles(homeSettlements, rentExchangeRate).length;
 
   const tabMeta: Record<string, { label: string; sub?: string }> = {
     budget:           { label: apartmentName,    sub: `${roommates.length} roommates` },
@@ -1080,6 +1083,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
             onAddHogarCategory={addHogarCategory}
             onAddPersonalCategory={addPersonalCategory}
             onManageCategories={macro => setCategoriesOpen(macro)}
+            usdToPen={rentExchangeRate}
             prefilledBillId={prefilledBillId}
             onClearPrefilledBillId={() => setPrefilledBillId('')}
             settlementHistory={settlementHistory}
