@@ -28,6 +28,12 @@ interface RoommateEntry {
 
 const COLORS = ['#ec4899','#10b981','#f59e0b','#3b82f6','#8b5cf6','#ef4444','#14b8a6'];
 
+function throwIfSupabaseError(error: { message?: string } | null, fallback: string): void {
+  if (!error) return;
+  console.error(fallback, error);
+  throw new Error(fallback);
+}
+
 function StepDots({ current, total }: { current: number; total: number }) {
   return (
     <div className="flex items-center justify-center gap-1.5 mb-8">
@@ -80,7 +86,9 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
     Promise.all([
       supabase.from('apartments').select('rent, maintenance, rent_currency, default_split_type, default_split_percentages').eq('id', resumeAptId).single(),
       supabase.from('roommates').select('id, name, income, color, user_id').eq('apartment_id', resumeAptId),
-    ]).then(([{ data: apt }, { data: rms }]) => {
+    ]).then(([{ data: apt, error: aptError }, { data: rms, error: roommatesError }]) => {
+      throwIfSupabaseError(aptError, 'No se pudo recuperar la configuración pendiente.');
+      throwIfSupabaseError(roommatesError, 'No se pudieron recuperar los roommates pendientes.');
       let resumeStep: Step = 'roommates';
 
       // Pre-populate costs and split
@@ -115,6 +123,10 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
       }
 
       setStep(resumeStep);
+      setRoommatesLoaded(true);
+    }).catch(err => {
+      console.error('Error resuming apartment setup:', err);
+      setError(err instanceof Error ? err.message : 'No se pudo recuperar el registro pendiente.');
       setRoommatesLoaded(true);
     });
   }, [resumeAptId, roommatesLoaded]);
@@ -153,7 +165,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
         .insert({ apartment_id: apt.id, user_id: user.id, role: 'owner' });
       if (memErr) throw memErr;
 
-      const { data: rmRow } = await supabase.from('roommates').insert({
+      const { data: rmRow, error: rmErr } = await supabase.from('roommates').insert({
         apartment_id: apt.id,
         name: myName.trim(),
         income: 0,
@@ -161,6 +173,7 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
         sort_order: 0,
         user_id: user.id,
       }).select('id').single();
+      throwIfSupabaseError(rmErr, 'El depa se creó, pero no se pudo crear tu perfil de roommate. Recarga para continuar.');
 
       setAptId(apt.id);
       setCreatorDbId(rmRow?.id ?? '');
@@ -196,12 +209,13 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
 
       // Update existing rows (name may have changed)
       for (const r of toUpdate) {
-        await supabase.from('roommates').update({ name: r.name.trim() }).eq('id', r.dbId!);
+        const { error } = await supabase.from('roommates').update({ name: r.name.trim() }).eq('id', r.dbId!).select('id').single();
+        throwIfSupabaseError(error, `No se pudo actualizar a ${r.name.trim()}.`);
       }
 
       // Insert only truly new ones
       if (toInsert.length > 0) {
-        const { data: inserted } = await supabase.from('roommates').insert(
+        const { data: inserted, error } = await supabase.from('roommates').insert(
           toInsert.map((r, i) => ({
             apartment_id: aptId,
             name: r.name.trim(),
@@ -210,6 +224,8 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
             sort_order: toUpdate.length + i + 1,
           }))
         ).select('id, name');
+        throwIfSupabaseError(error, 'No se pudieron guardar los roommates nuevos.');
+        if ((inserted?.length ?? 0) !== toInsert.length) throw new Error('No se pudieron confirmar todos los roommates guardados.');
         if (inserted) {
           setRoommates(prev => prev.map(r => {
             const match = inserted.find(ins => ins.name === r.name.trim());
@@ -232,7 +248,8 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
     setError('');
     try {
       const list = hogarCats.includes('otros') ? hogarCats : [...hogarCats, 'otros'];
-      await supabase.from('apartments').update({ hogar_categories: list }).eq('id', aptId);
+      const { error } = await supabase.from('apartments').update({ hogar_categories: list }).eq('id', aptId).select('id').single();
+      throwIfSupabaseError(error, 'No se pudieron guardar las categorías.');
       setStep('split');
     } catch (err: any) {
       setError(err.message || 'Error al guardar.');
@@ -246,11 +263,12 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
     setLoading(true);
     setError('');
     try {
-      await supabase.from('apartments').update({
+      const { error } = await supabase.from('apartments').update({
         rent: parseFloat(rent) || 0,
         rent_currency: 'USD',
         maintenance: parseFloat(maintenance) || 0,
-      }).eq('id', aptId);
+      }).eq('id', aptId).select('id').single();
+      throwIfSupabaseError(error, 'No se pudieron guardar los costos del depa.');
       setStep('categories');
     } catch (err: any) {
       setError(err.message || 'Error al guardar.');
@@ -274,17 +292,24 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
         if (Math.abs(total - 100) > 0.5) { setError(`Los porcentajes deben sumar 100% (suma actual: ${total.toFixed(0)}%)`); setLoading(false); return; }
         const percs: Record<string, number> = {};
         for (const p of allPeople) if (p.id) percs[p.id] = parseFloat(p.percent) || 0;
-        await supabase.from('apartments').update({ default_split_type: 'porcentaje', default_split_percentages: percs }).eq('id', aptId);
+        const { error } = await supabase.from('apartments').update({ default_split_type: 'porcentaje', default_split_percentages: percs }).eq('id', aptId).select('id').single();
+        throwIfSupabaseError(error, 'No se pudo guardar la división personalizada.');
       } else if (splitType === 'proporcional') {
         for (const p of allPeople) {
-          if (p.id) await supabase.from('roommates').update({ income: parseFloat(p.income) || 0 }).eq('id', p.id);
+          if (p.id) {
+            const { error } = await supabase.from('roommates').update({ income: parseFloat(p.income) || 0 }).eq('id', p.id).select('id').single();
+            throwIfSupabaseError(error, `No se pudo guardar el ingreso de ${p.name}.`);
+          }
         }
-        await supabase.from('apartments').update({ default_split_type: 'proporcional' }).eq('id', aptId);
+        const { error } = await supabase.from('apartments').update({ default_split_type: 'proporcional' }).eq('id', aptId).select('id').single();
+        throwIfSupabaseError(error, 'No se pudo guardar la división por ingresos.');
       } else {
-        await supabase.from('apartments').update({ default_split_type: 'equitativo' }).eq('id', aptId);
+        const { error } = await supabase.from('apartments').update({ default_split_type: 'equitativo' }).eq('id', aptId).select('id').single();
+        throwIfSupabaseError(error, 'No se pudo guardar la división equitativa.');
       }
 
-      await supabase.from('apartments').update({ onboarding_complete: true }).eq('id', aptId);
+      const { error: completeError } = await supabase.from('apartments').update({ onboarding_complete: true }).eq('id', aptId).select('id').single();
+      throwIfSupabaseError(completeError, 'No se pudo completar el registro del depa.');
 
       // El link de invitación ya no se muestra durante el setup — se pide
       // aquí para que la app lo ofrezca en un popup una vez adentro, cuando
@@ -334,9 +359,10 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
         .single();
       if (aptErr || !apt) throw new Error('Código inválido. Verifica con tu compañero.');
 
-      const { data: existing } = await supabase
+      const { data: existing, error: existingErr } = await supabase
         .from('apartment_members')
         .select('id').eq('apartment_id', apt.id).eq('user_id', user.id).maybeSingle();
+      throwIfSupabaseError(existingErr, 'No se pudo comprobar tu membresía.');
 
       if (!existing) {
         const { error: memErr } = await supabase
@@ -345,21 +371,24 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
         if (memErr) throw memErr;
 
         // Try to claim a pending roommate slot with the same name, else create new
-        const { data: pending } = await supabase
+        const { data: pending, error: pendingErr } = await supabase
           .from('roommates')
           .select('id')
           .eq('apartment_id', apt.id)
           .eq('name', joinName.trim())
           .is('user_id', null)
           .maybeSingle();
+        throwIfSupabaseError(pendingErr, 'No se pudo comprobar tu invitación de roommate.');
 
         if (pending) {
-          await supabase.from('roommates').update({ user_id: user.id }).eq('id', pending.id);
+          const { error } = await supabase.from('roommates').update({ user_id: user.id }).eq('id', pending.id).select('id').single();
+          throwIfSupabaseError(error, 'No se pudo vincular tu perfil de roommate.');
         } else {
-          await supabase.from('roommates').insert({
+          const { error } = await supabase.from('roommates').insert({
             apartment_id: apt.id, name: joinName.trim(),
             income: 0, color: '#ec4899', sort_order: 99, user_id: user.id,
-          });
+          }).select('id').single();
+          throwIfSupabaseError(error, 'No se pudo crear tu perfil de roommate.');
         }
       }
 
@@ -429,10 +458,15 @@ export default function ApartmentSetupScreen({ user, onReady, initialCode, resum
             </div>
             <ArrowRight size={18} className="text-zinc-400" />
           </button>
-          <button type="button" onClick={() => supabase.auth.signOut()}
+          <button type="button" onClick={async () => {
+            setError('');
+            const { error: signOutError } = await supabase.auth.signOut();
+            if (signOutError) setError('No se pudo cerrar la sesión. Intenta de nuevo.');
+          }}
             className="w-full text-zinc-400 text-sm hover:text-zinc-600 transition pt-2">
             Usar otra cuenta
           </button>
+          {error && <p className="text-rose-500 text-sm font-medium text-center">{error}</p>}
         </div>
       </div>
     );

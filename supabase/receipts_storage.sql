@@ -29,8 +29,10 @@ ON CONFLICT (id) DO UPDATE
 -- ─────────────────────────────────────────────────────────────
 -- 2. Políticas
 --
--- La ruta de cada archivo es  {apartment_id}/{uuid}.jpg  — el primer
--- segmento decide quién puede verlo. Se compara como texto a propósito:
+-- Las rutas nuevas son {apartment_id}/hogar/{uuid}.jpg y
+-- {apartment_id}/personal/{roommate_id}/{uuid}.jpg. El primer segmento
+-- identifica el depa y los siguientes definen la visibilidad. Se compara
+-- apartment_id como texto a propósito:
 -- castear a uuid haría fallar la política ante una ruta malformada en
 -- vez de simplemente negarla.
 -- ─────────────────────────────────────────────────────────────
@@ -44,6 +46,25 @@ CREATE POLICY "receipts read" ON storage.objects FOR SELECT USING (
     SELECT 1 FROM apartment_members m
      WHERE m.user_id = auth.uid()
        AND m.apartment_id::text = (storage.foldername(name))[1]
+       AND (
+         (storage.foldername(name))[2] = 'hogar'
+         OR (
+           (storage.foldername(name))[2] = 'personal'
+           AND (storage.foldername(name))[3] = my_roommate_id(m.apartment_id)::text
+         )
+         OR (
+           cardinality(storage.foldername(name)) = 1
+           AND EXISTS (
+             SELECT 1 FROM expenses e
+              WHERE e.apartment_id = m.apartment_id
+                AND e.receipt_image = name
+                AND (
+                  e.macro_category IS DISTINCT FROM 'personal'
+                  OR e.paid_by = my_roommate_id(m.apartment_id)::text
+                )
+           )
+         )
+       )
   )
 );
 
@@ -53,6 +74,13 @@ CREATE POLICY "receipts insert" ON storage.objects FOR INSERT WITH CHECK (
     SELECT 1 FROM apartment_members m
      WHERE m.user_id = auth.uid()
        AND m.apartment_id::text = (storage.foldername(name))[1]
+       AND (
+         (storage.foldername(name))[2] = 'hogar'
+         OR (
+           (storage.foldername(name))[2] = 'personal'
+           AND (storage.foldername(name))[3] = my_roommate_id(m.apartment_id)::text
+         )
+       )
   )
 );
 
@@ -62,6 +90,25 @@ CREATE POLICY "receipts delete" ON storage.objects FOR DELETE USING (
     SELECT 1 FROM apartment_members m
      WHERE m.user_id = auth.uid()
        AND m.apartment_id::text = (storage.foldername(name))[1]
+       AND (
+         (storage.foldername(name))[2] = 'hogar'
+         OR (
+           (storage.foldername(name))[2] = 'personal'
+           AND (storage.foldername(name))[3] = my_roommate_id(m.apartment_id)::text
+         )
+         OR (
+           cardinality(storage.foldername(name)) = 1
+           AND EXISTS (
+             SELECT 1 FROM expenses e
+              WHERE e.apartment_id = m.apartment_id
+                AND e.receipt_image = name
+                AND (
+                  e.macro_category IS DISTINCT FROM 'personal'
+                  OR e.paid_by = my_roommate_id(m.apartment_id)::text
+                )
+           )
+         )
+       )
   )
 );
 

@@ -323,11 +323,35 @@ CREATE POLICY "expenses select" ON expenses FOR SELECT USING (
 );
 
 CREATE POLICY "expenses insert" ON expenses FOR INSERT
-  WITH CHECK (is_member(apartment_id));
+  WITH CHECK (
+    is_member(apartment_id)
+    AND (
+      macro_category IS DISTINCT FROM 'personal'
+      OR paid_by = my_roommate_id(apartment_id)::text
+    )
+  );
 CREATE POLICY "expenses update" ON expenses FOR UPDATE
-  USING (is_member(apartment_id)) WITH CHECK (is_member(apartment_id));
+  USING (
+    is_member(apartment_id)
+    AND (
+      macro_category IS DISTINCT FROM 'personal'
+      OR paid_by = my_roommate_id(apartment_id)::text
+    )
+  ) WITH CHECK (
+    is_member(apartment_id)
+    AND (
+      macro_category IS DISTINCT FROM 'personal'
+      OR paid_by = my_roommate_id(apartment_id)::text
+    )
+  );
 CREATE POLICY "expenses delete" ON expenses FOR DELETE
-  USING (is_member(apartment_id));
+  USING (
+    is_member(apartment_id)
+    AND (
+      macro_category IS DISTINCT FROM 'personal'
+      OR paid_by = my_roommate_id(apartment_id)::text
+    )
+  );
 
 -- ── roommates, bills, bill_history, settlements ──────────────
 DO $$ DECLARE t text; BEGIN

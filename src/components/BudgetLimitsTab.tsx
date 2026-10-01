@@ -115,6 +115,9 @@ function EditModal({ label, current, onSave, onClose }: EditModalProps) {
 }
 
 interface BarRowProps {
+  // React's JSX `key` is not available in this project without the optional
+  // @types/react package, so declare it for type-checking only.
+  key?: string;
   label: string;
   spent: number;
   limit?: number;

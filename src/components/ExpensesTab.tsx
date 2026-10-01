@@ -10,20 +10,20 @@ interface ExpensesTabProps {
   roommates: Roommate[];
   allRoommates?: Roommate[];
   expenses: Expense[];
-  onAddExpense: (expense: Expense) => void;
-  onRemoveExpense: (id: string) => void;
-  onUpdateExpense: (expense: Expense) => void;
+  onAddExpense: (expense: Expense) => Promise<void>;
+  onRemoveExpense: (id: string) => Promise<void>;
+  onUpdateExpense: (expense: Expense) => Promise<void>;
   onNavigateTab?: (tab: string) => void;
   bills?: RecurrentBill[];
-  onAddBill?: (bill: RecurrentBill) => void;
+  onAddBill?: (bill: RecurrentBill) => Promise<void>;
   hogarCategories?: string[];
   personalCategories?: string[];
-  onAddHogarCategory?: (name: string) => void;
-  onAddPersonalCategory?: (name: string) => void;
+  onAddHogarCategory?: (name: string) => Promise<void>;
+  onAddPersonalCategory?: (name: string) => Promise<void>;
   prefilledBillId?: string;
   onClearPrefilledBillId?: () => void;
   settlementHistory?: SettlementRecord[];
-  onAddSettlement?: (record: SettlementRecord) => void;
+  onAddSettlement?: (record: SettlementRecord) => Promise<void>;
   defaultSplitType?: SplitType;
   defaultSplitPercentages?: Record<string, number>;
   currentUserId?: string;
@@ -58,12 +58,14 @@ export default function ExpensesTab({
   const [title, setTitle] = useState('');
   const [amountInput, setAmountInput] = useState<number | ''>('');
   const [category, setCategory] = useState<ExpenseCategory>('comida');
-  const [paidBy, setPaidBy] = useState(roommates[0]?.id || '');
+  const [paidBy, setPaidBy] = useState(currentRoommateId || roommates[0]?.id || '');
   const [splitType, setSplitType] = useState<SplitType>(defaultSplitType);
   const [customPercentages, setCustomPercentages] = useState<Record<string, string>>(
     () => Object.fromEntries(Object.entries(defaultSplitPercentages).map(([k, v]) => [k, String(v)]))
   );
   const [successMsg, setSuccessMsg] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [saving, setSaving] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [currency, setCurrency] = useState<'PEN' | 'USD'>('PEN');
   const [exchangeRateInput, setExchangeRateInput] = useState<number | ''>(1);
@@ -146,7 +148,7 @@ export default function ExpensesTab({
 
   const currentMonthName = currentMonthYearString();
 
-  const handleSettle = (sett: any) => {
+  const handleSettle = async (sett: any) => {
     if (!onAddSettlement) return;
     const record: SettlementRecord = {
       id: crypto.randomUUID(),
@@ -157,12 +159,18 @@ export default function ExpensesTab({
       exchangeRate: sett.exchangeRate || 1,
       date: new Date().toISOString().split('T')[0],
     };
-    onAddSettlement(record);
-    setSettlingIndex(null);
-    const debtorName = resolvedAllRoommates.find((r) => r.id === sett.from)?.name || 'Inquilino';
-    const creditorName = resolvedAllRoommates.find((r) => r.id === sett.to)?.name || 'Inquilino';
-    setSuccessMsg(`¡Liquidación de ${sett.currency === 'USD' ? '$' : 'S/.'} ${sett.amount.toFixed(2)} registrada (${debtorName} → ${creditorName})!`);
-    setTimeout(() => setSuccessMsg(''), 4000);
+    setActionError('');
+    try {
+      await onAddSettlement(record);
+      setSettlingIndex(null);
+      const debtorName = resolvedAllRoommates.find((r) => r.id === sett.from)?.name || 'Inquilino';
+      const creditorName = resolvedAllRoommates.find((r) => r.id === sett.to)?.name || 'Inquilino';
+      setSuccessMsg(`¡Liquidación de ${sett.currency === 'USD' ? '$' : 'S/.'} ${sett.amount.toFixed(2)} registrada (${debtorName} → ${creditorName})!`);
+      setTimeout(() => setSuccessMsg(''), 4000);
+    } catch (error) {
+      console.error('Error saving settlement:', error);
+      setActionError(error instanceof Error ? error.message : 'No se pudo registrar la liquidación.');
+    }
   };
 
   const toggleExpenseDetails = (id: string) => {
@@ -177,7 +185,7 @@ export default function ExpensesTab({
     setTitle(expense.title);
     setAmountInput(expense.amount);
     setCategory(expense.category);
-    setPaidBy(expense.paidBy);
+    setPaidBy(expense.macroCategory === 'personal' && currentRoommateId ? currentRoommateId : expense.paidBy);
     setDate(expense.date || new Date().toISOString().split('T')[0]);
     setSplitType(expense.splitType);
     setCurrency(expense.currency || 'PEN');
@@ -197,11 +205,12 @@ export default function ExpensesTab({
   };
 
   const cancelEdit = () => {
+    if (saving) return;
     setEditingExpenseId(null);
     setTitle('');
     setAmountInput('');
     setCategory('comida');
-    setPaidBy(roommates[0]?.id || '');
+    setPaidBy(currentRoommateId || roommates[0]?.id || '');
     setDate(new Date().toISOString().split('T')[0]);
     setSplitType(defaultSplitType);
     setCurrency('PEN');
@@ -214,6 +223,7 @@ export default function ExpensesTab({
       : (() => { const p: Record<string,string> = {}; const eq = Math.round((100/roommates.length)*100)/100; roommates.forEach(r => { p[r.id] = String(eq); }); return p; })();
     setCustomPercentages(defaultPercs);
     setIsModalOpen(false);
+    setActionError('');
   };
 
   const handleOpenNewExpenseForm = () => {
@@ -265,6 +275,10 @@ export default function ExpensesTab({
     }
   }, [roommates]);
 
+  React.useEffect(() => {
+    if (currentRoommateId && macroCategory === 'personal') setPaidBy(currentRoommateId);
+  }, [currentRoommateId, macroCategory]);
+
   const handlePercentageChange = (roommateId: string, value: string) => {
     setCustomPercentages((prev) => ({
       ...prev,
@@ -279,7 +293,10 @@ export default function ExpensesTab({
     setUploadingReceipt(true);
     setReceiptError('');
     try {
-      setReceiptImage(await uploadReceipt(file, apartmentId));
+      if (macroCategory === 'personal' && !currentRoommateId) {
+        throw new Error('Tu perfil de roommate no está vinculado. Recarga antes de adjuntar un recibo personal.');
+      }
+      setReceiptImage(await uploadReceipt(file, apartmentId, macroCategory, currentRoommateId));
     } catch (err: any) {
       setReceiptError(
         /bucket|not found/i.test(err?.message ?? '')
@@ -293,12 +310,22 @@ export default function ExpensesTab({
 
   const totalIncome = roommates.reduce((sum, r) => sum + r.income, 0);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !amountInput || Number(amountInput) <= 0) {
       alert("Por favor ingrese un título válido y un monto mayor a cero.");
       return;
     }
+
+    if (macroCategory === 'personal' && !currentRoommateId) {
+      setActionError('Tu perfil de roommate no está vinculado. Recarga antes de registrar un gasto personal.');
+      return;
+    }
+
+    setActionError('');
+    setSaving(true);
+
+    try {
 
     const amount = Number(amountInput);
     let splitsRecord: Record<string, number> = {};
@@ -335,6 +362,12 @@ export default function ExpensesTab({
       });
     }
 
+    const expensePaidBy = macroCategory === 'personal' ? currentRoommateId! : paidBy;
+    if (macroCategory === 'personal') {
+      splitsRecord = Object.fromEntries(roommates.map(r => [r.id, r.id === expensePaidBy ? 100 : 0]));
+      calculatedShares = Object.fromEntries(roommates.map(r => [r.id, r.id === expensePaidBy ? amount : 0]));
+    }
+
     // Fix small rounding differences in calculated shares
     const sumShares = roommates.reduce((acc, r) => acc + (calculatedShares[r.id] || 0), 0);
     const diff = amount - sumShares;
@@ -352,7 +385,7 @@ export default function ExpensesTab({
         amount,
         category,
         macroCategory,
-        paidBy,
+        paidBy: expensePaidBy,
         date: date || new Date().toISOString().split('T')[0],
         splitType,
         splits: splitsRecord,
@@ -363,7 +396,7 @@ export default function ExpensesTab({
         recurrentBillMonth: associatedBillId ? recurrentBillMonth : undefined,
         receiptImage,
       };
-      onUpdateExpense(updatedExpense);
+      await onUpdateExpense(updatedExpense);
       setEditingExpenseId(null);
       setSuccessMsg('¡Gasto actualizado con éxito!');
     } else {
@@ -373,7 +406,7 @@ export default function ExpensesTab({
         amount,
         category,
         macroCategory,
-        paidBy,
+        paidBy: expensePaidBy,
         date: date || new Date().toISOString().split('T')[0],
         splitType,
         splits: splitsRecord,
@@ -397,21 +430,21 @@ export default function ExpensesTab({
           alertSent: false,
           splitType,
           splits: splitsRecord,
-          paidBy,
+          paidBy: expensePaidBy,
           category,
           createdAt: new Date().toISOString().slice(0, 7),
         };
-        onAddBill(newBill);
+        await onAddBill(newBill);
         newExpense.recurrentBillId = newBill.id;
         newExpense.recurrentBillMonth = recurrentBillMonth;
       }
 
-      onAddExpense(newExpense);
+      await onAddExpense(newExpense);
       setSuccessMsg('¡Gasto registrado con éxito!');
 
       // Show split notification
       const owingRoommates = roommates
-        .filter((r) => r.id !== paidBy && (calculatedShares[r.id] || 0) > 0.01)
+        .filter((r) => r.id !== expensePaidBy && (calculatedShares[r.id] || 0) > 0.01)
         .map((r) => ({
           name: r.name,
           amount: calculatedShares[r.id] || 0,
@@ -426,7 +459,7 @@ export default function ExpensesTab({
     setTitle('');
     setAmountInput('');
     setCategory('comida');
-    setPaidBy(roommates[0]?.id || '');
+    setPaidBy(currentRoommateId || roommates[0]?.id || '');
     setDate(new Date().toISOString().split('T')[0]);
     setSplitType(defaultSplitType);
     setCurrency('PEN');
@@ -449,6 +482,28 @@ export default function ExpensesTab({
     setCustomPercentages(defaultPercs2);
     setIsModalOpen(false);
     setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (error) {
+      console.error('Error saving expense:', error);
+      setSuccessMsg('');
+      setActionError(error instanceof Error ? error.message : 'No se pudo guardar el gasto. Intenta de nuevo.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddCategory = async (name: string) => {
+    const addCategory = macroCategory === 'hogar' ? onAddHogarCategory : onAddPersonalCategory;
+    if (!addCategory) return;
+    setActionError('');
+    try {
+      await addCategory(name);
+      setCategory(name);
+      setNewCatName('');
+      setShowNewCatInput(false);
+    } catch (error) {
+      console.error('Error saving category:', error);
+      setActionError(error instanceof Error ? error.message : 'No se pudo guardar la categoría.');
+    }
   };
 
   // Compile all available months from the expenses list
@@ -577,6 +632,13 @@ export default function ExpensesTab({
     }
   };
 
+  // Una categoría renombrada o creada por el usuario no está en el mapa. En vez
+  // de caer directo al ícono genérico, se infiere por el nombre: "mercado"
+  // conserva el carrito de "comida". inferCategoryFromName devuelve 'otros'
+  // cuando no reconoce nada, que también está en el mapa.
+  const iconFor = (cat: string): React.ElementType =>
+    CATEGORY_ICON_MAP[cat] ?? CATEGORY_ICON_MAP[inferCategoryFromName(cat)] ?? MoreHorizontal;
+
   const CATEGORY_ICON_MAP: Record<string, React.ElementType> = {
     alquiler: Home, servicio: Zap, comida: ShoppingCart, limpieza: Droplet,
     membresia: CreditCard, auto: Car, otros: MoreHorizontal,
@@ -642,6 +704,14 @@ export default function ExpensesTab({
         <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-lg flex items-center gap-2 z-50 animate-fadeIn">
           <Check size={16} />
           <span className="text-[14px] font-medium">{successMsg}</span>
+        </div>
+      )}
+
+      {actionError && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-rose-600 text-white px-5 py-3 rounded-2xl shadow-lg flex items-center gap-2 z-[120] animate-fadeIn max-w-[calc(100%_-_2rem)]">
+          <AlertTriangle size={16} className="shrink-0" />
+          <span className="text-[14px] font-medium">{actionError}</span>
+          <button type="button" onClick={() => setActionError('')} aria-label="Cerrar error"><X size={14} /></button>
         </div>
       )}
 
@@ -844,7 +914,7 @@ export default function ExpensesTab({
               <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-2 px-1">{group.label}</p>
               <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 overflow-hidden">
                 {group.items.map((expense, i) => {
-                  const CatIcon = CATEGORY_ICON_MAP[expense.category] || MoreHorizontal;
+                  const CatIcon = iconFor(expense.category);
                   const catColor = {
                     alquiler: '#4F46E5', servicio: '#EC4899', comida: '#F59E0B',
                     limpieza: '#10B981', membresia: '#3B82F6', auto: '#8B5CF6',
@@ -921,7 +991,15 @@ export default function ExpensesTab({
                                 className="w-8 h-8 flex items-center justify-center rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-indigo-500">
                                 <Pencil size={13} />
                               </button>
-                              <button type="button" onClick={() => onRemoveExpense(expense.id)}
+                              <button type="button" onClick={async () => {
+                                setActionError('');
+                                try {
+                                  await onRemoveExpense(expense.id);
+                                } catch (error) {
+                                  console.error('Error deleting expense:', error);
+                                  setActionError(error instanceof Error ? error.message : 'No se pudo eliminar el gasto.');
+                                }
+                              }}
                                 className="w-8 h-8 flex items-center justify-center rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-rose-500">
                                 <Trash2 size={13} />
                               </button>
@@ -984,15 +1062,17 @@ export default function ExpensesTab({
                   <div className="relative">
                     <button
                       type="button"
+                      disabled={macroCategory === 'personal'}
                       ref={payerBtnRef}
                       id="expense-payer-select"
                       aria-label="Seleccionar pagador"
                       onClick={() => {
+                        if (macroCategory === 'personal') return;
                         const rect = payerBtnRef.current?.getBoundingClientRect();
                         if (rect) setPayerDropdownPos({ top: rect.bottom + 4, left: rect.left + rect.width / 2 });
                         setShowPayerDropdown(p => !p);
                       }}
-                      className="flex items-center gap-2 h-9 pl-2 pr-3 rounded-full border transition active:scale-95"
+                      className="flex items-center gap-2 h-9 pl-2 pr-3 rounded-full border transition active:scale-95 disabled:cursor-default"
                       style={{ background: '#EEF2FF', borderColor: '#C7D2FE' }}
                     >
                       <div
@@ -1004,9 +1084,11 @@ export default function ExpensesTab({
                       <span className="text-[13px] font-semibold text-indigo-700">
                         {roommates.find(r => r.id === paidBy)?.name || 'Seleccionar'}
                       </span>
-                      <ChevronDown size={14} className="text-indigo-400" />
+                      {macroCategory === 'personal'
+                        ? <span className="text-[10px] text-indigo-400">solo tú</span>
+                        : <ChevronDown size={14} className="text-indigo-400" />}
                     </button>
-                    {showPayerDropdown && createPortal(
+                    {macroCategory === 'hogar' && showPayerDropdown && createPortal(
                       <>
                         <div className="fixed inset-0 z-[500]" onClick={() => setShowPayerDropdown(false)} />
                         <div
@@ -1165,14 +1247,24 @@ export default function ExpensesTab({
                         key={val}
                         type="button"
                         onClick={() => {
+                          if (val !== macroCategory && receiptImage) {
+                            setActionError('Quita el recibo antes de cambiar entre gasto de hogar y personal, y luego vuelve a adjuntarlo.');
+                            return;
+                          }
+                          if (val === 'personal' && !currentRoommateId) {
+                            setActionError('Tu perfil de roommate no está vinculado. Recarga antes de registrar un gasto personal.');
+                            return;
+                          }
                           setMacroCategory(val);
+                          setActionError('');
                           setShowNewCatInput(false);
                           setNewCatName('');
                           if (val === 'personal') {
+                            setPaidBy(currentRoommateId!);
                             setCategory(personalCategories[0] ?? 'otros');
                             setSplitType('porcentaje');
                             const percs: Record<string, string> = {};
-                            roommates.forEach(r => { percs[r.id] = r.id === paidBy ? '100' : '0'; });
+                            roommates.forEach(r => { percs[r.id] = r.id === currentRoommateId ? '100' : '0'; });
                             setCustomPercentages(percs);
                           } else {
                             setCategory(hogarCategories[0] ?? 'otros');
@@ -1338,7 +1430,7 @@ export default function ExpensesTab({
                         <>
                           {visibleCats.map(cat => {
                             const active = category === cat;
-                            const CatIcon = CATEGORY_ICON_MAP[cat] || MoreHorizontal;
+                            const CatIcon = iconFor(cat);
                             return (
                               <button key={cat} type="button" onClick={() => setCategory(cat)}
                                 className={`flex items-center gap-1.5 h-9 px-3 rounded-xl text-[13px] font-medium transition active:scale-95 ${active ? 'text-indigo-700 bg-white' : 'bg-white text-gray-500 hover:text-gray-700'}`}
@@ -1380,10 +1472,10 @@ export default function ExpensesTab({
                         placeholder="Nombre de categoría"
                         className="flex-1 h-9 px-3 rounded-xl bg-gray-100 text-[12px] text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
                         onKeyDown={e => {
-                          if (e.key === 'Enter') { e.preventDefault(); const n = newCatName.trim().toLowerCase(); if (!n) return; macroCategory === 'hogar' ? onAddHogarCategory?.(n) : onAddPersonalCategory?.(n); setCategory(n); setNewCatName(''); setShowNewCatInput(false); }
+                          if (e.key === 'Enter') { e.preventDefault(); const n = newCatName.trim().toLowerCase(); if (!n) return; void handleAddCategory(n); }
                           if (e.key === 'Escape') { setShowNewCatInput(false); setNewCatName(''); }
                         }} />
-                      <button type="button" onClick={() => { const n = newCatName.trim().toLowerCase(); if (!n) return; macroCategory === 'hogar' ? onAddHogarCategory?.(n) : onAddPersonalCategory?.(n); setCategory(n); setNewCatName(''); setShowNewCatInput(false); }} className="h-9 px-3 rounded-xl bg-indigo-600 text-white text-[12px] font-semibold">OK</button>
+                      <button type="button" onClick={() => { const n = newCatName.trim().toLowerCase(); if (!n) return; void handleAddCategory(n); }} className="h-9 px-3 rounded-xl bg-indigo-600 text-white text-[12px] font-semibold">OK</button>
                       <button type="button" onClick={() => { setShowNewCatInput(false); setNewCatName(''); }} className="h-9 px-2 rounded-xl bg-gray-200 text-gray-500 text-[12px]">✕</button>
                     </div>
                   )}
@@ -1444,10 +1536,11 @@ export default function ExpensesTab({
                   id="submit-expense-button"
                   type="submit"
                   form="expense-form"
-                  className="w-full h-[56px] text-white font-semibold text-[16px] rounded-2xl transition active:scale-[0.98] hover:opacity-90"
+                  disabled={saving || uploadingReceipt}
+                  className="w-full h-[56px] text-white font-semibold text-[16px] rounded-2xl transition active:scale-[0.98] hover:opacity-90 disabled:opacity-60 disabled:cursor-wait"
                   style={{ background: '#4338CA' }}
                 >
-                  {editingExpenseId ? 'Guardar cambios' : 'Registrar gasto'}
+                  {saving ? 'Guardando…' : editingExpenseId ? 'Guardar cambios' : 'Registrar gasto'}
                 </button>
               </div>
 

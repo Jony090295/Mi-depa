@@ -6,6 +6,7 @@ export interface AuthState {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  error: string | null;
   /** True while the user arrived from a password-reset email and hasn't set a new password yet. */
   isRecovery: boolean;
   clearRecovery: () => void;
@@ -23,13 +24,24 @@ function hashIsRecovery(): boolean {
 export function useAuth(): AuthState {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isRecovery, setIsRecovery] = useState(hashIsRecovery);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
-    });
+    supabase.auth.getSession()
+      .then(({ data, error: sessionError }) => {
+        if (sessionError) {
+          console.error('Error loading auth session:', sessionError);
+          setError('No se pudo recuperar tu sesión. Revisa tu conexión e intenta de nuevo.');
+          return;
+        }
+        setSession(data.session);
+      })
+      .catch(sessionError => {
+        console.error('Error loading auth session:', sessionError);
+        setError('No se pudo recuperar tu sesión. Revisa tu conexión e intenta de nuevo.');
+      })
+      .finally(() => setLoading(false));
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s);
@@ -47,5 +59,5 @@ export function useAuth(): AuthState {
     }
   };
 
-  return { session, user: session?.user ?? null, loading, isRecovery, clearRecovery };
+  return { session, user: session?.user ?? null, loading, error, isRecovery, clearRecovery };
 }

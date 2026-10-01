@@ -28,7 +28,7 @@ import {
 // ─── Auth shell ──────────────────────────────────────────────────────────────
 
 export default function AppShell() {
-  const { session, user, loading, isRecovery, clearRecovery } = useAuth();
+  const { session, user, loading, error: authError, isRecovery, clearRecovery } = useAuth();
 
   // Persist join code across auth redirects
   const urlJoinCode = new URLSearchParams(window.location.search).get('join');
@@ -49,6 +49,20 @@ export default function AppShell() {
     );
   }
 
+  if (authError) {
+    return (
+      <div className="min-h-dvh bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center p-6">
+        <div className="w-full max-w-sm text-center space-y-4">
+          <p className="text-sm font-medium text-rose-600">{authError}</p>
+          <button type="button" onClick={() => window.location.reload()}
+            className="h-11 px-5 rounded-xl bg-indigo-600 text-white text-sm font-semibold">
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // A recovery link signs the user in, so this must come before the session check
   // or they'd land in the app without ever setting a new password.
   if (isRecovery) return <ResetPasswordScreen onDone={clearRecovery} />;
@@ -64,7 +78,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
   const data = useApartmentData(user);
 
   const {
-    loading: dataLoading, noApartment, onboardingComplete, reload,
+    loading: dataLoading, loadError: dataLoadError, noApartment, onboardingComplete, reload,
     aptConfig, roommates, expenses, bills, billHistory,
     posts, trustedServices, settlementHistory,
     setExpenses, setBills, setBillHistory,
@@ -72,7 +86,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     addExpense, updateExpense, removeExpense,
     addBill, updateBill, removeBill,
     addBillHistory, removeBillHistory, updateBillHistoryEntry,
-    hogarCategories, personalCategories, setHogarCategories, setPersonalCategories,
+    hogarCategories, personalCategories, setHogarCategories, setPersonalCategories, renameCategory,
     addHogarCategory, addPersonalCategory,
     addSettlement, addPost, updatePost, deletePost, addReply,
     addTrustedService, updateTrustedService, deleteTrustedService,
@@ -100,6 +114,14 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
   const [activeTab, setActiveTab] = useState<'overview' | 'budget' | 'expenses' | 'bills' | 'limits' | 'directory' | 'forum' | 'projected_budget'>('budget');
   const [environment, setEnvironment] = useState<'depa' | 'comunidad'>('depa');
   const [globalAlert, setGlobalAlert] = useState<string | null>(null);
+  const [globalError, setGlobalError] = useState<string | null>(null);
+  const [homeSaving, setHomeSaving] = useState(false);
+
+  const showActionError = (error: unknown, fallback: string) => {
+    console.error(fallback, error);
+    setGlobalError(error instanceof Error ? error.message : fallback);
+    window.setTimeout(() => setGlobalError(null), 6000);
+  };
 
   // El setup deja esta bandera al terminar. Va en un efecto y no en el
   // inicializador de useState porque AppMain ya está montado mientras se
@@ -255,6 +277,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
 
   const handleUpdateRoommates = async (updated: Roommate[]) => {
     const removed = roommates.filter(r => !updated.some(u => u.id === r.id));
+    await updateRoommates(updated);
     if (removed.length) {
       setDeletedRoommates(prev => {
         const next = [...prev];
@@ -262,83 +285,17 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
         return next;
       });
     }
-    await updateRoommates(updated);
   };
 
   const handleAddExpense = async (exp: Expense) => {
     await addExpense(exp);
-
-    if (exp.recurrentBillId) {
-      const monthPaidFor = exp.recurrentBillMonth || getMonthYearStringFromDate(exp.date) || getCurrentMonthYearString();
-      const bill = bills.find(b => b.id === exp.recurrentBillId);
-      if (bill) {
-        const historyId = `hist-${exp.id}`;
-        const newEntry: RecurrentBillHistory = {
-          id: historyId, billId: bill.id, name: bill.name, amount: exp.amount,
-          dueDate: bill.dueDate, notes: bill.notes, paidBy: exp.paidBy,
-          splitType: exp.splitType || 'no_dividir', splits: exp.splits,
-          currency: exp.currency || 'PEN', exchangeRate: exp.exchangeRate || 1,
-          monthPaidFor, datePaid: exp.date, status: 'pagado',
-        };
-        // Remove conflicting history for same bill+month
-        const conflict = billHistory.find(h => h.billId === bill.id && h.monthPaidFor === monthPaidFor && h.id !== historyId);
-        if (conflict) await removeBillHistory(conflict.id);
-        await addBillHistory(newEntry);
-
-        if (monthPaidFor === getCurrentMonthYearString()) {
-          await updateBill({ ...bill, status: 'pagado', associatedExpenseId: exp.id });
-        }
-      }
-    }
   };
 
   const handleUpdateExpense = async (updated: Expense) => {
-    const oldExp = expenses.find(e => e.id === updated.id);
-    if (oldExp && oldExp.recurrentBillId && oldExp.recurrentBillId !== updated.recurrentBillId) {
-      const historyId = `hist-${oldExp.id}`;
-      const oldMonth = oldExp.recurrentBillMonth || getMonthYearStringFromDate(oldExp.date) || getCurrentMonthYearString();
-      await removeBillHistory(historyId);
-      if (oldMonth === getCurrentMonthYearString()) {
-        const oldBill = bills.find(b => b.id === oldExp.recurrentBillId);
-        if (oldBill) await updateBill({ ...oldBill, status: 'por pagar', associatedExpenseId: undefined });
-      }
-    }
-
     await updateExpense(updated);
-
-    if (updated.recurrentBillId) {
-      const monthPaidFor = updated.recurrentBillMonth || getMonthYearStringFromDate(updated.date) || getCurrentMonthYearString();
-      const bill = bills.find(b => b.id === updated.recurrentBillId);
-      if (bill) {
-        const historyId = `hist-${updated.id}`;
-        const newEntry: RecurrentBillHistory = {
-          id: historyId, billId: bill.id, name: bill.name, amount: updated.amount,
-          dueDate: bill.dueDate, notes: bill.notes, paidBy: updated.paidBy,
-          splitType: updated.splitType || 'no_dividir', splits: updated.splits,
-          currency: updated.currency || 'PEN', exchangeRate: updated.exchangeRate || 1,
-          monthPaidFor, datePaid: updated.date, status: 'pagado',
-        };
-        const conflict = billHistory.find(h => h.billId === bill.id && h.monthPaidFor === monthPaidFor && h.id !== historyId);
-        if (conflict) await removeBillHistory(conflict.id);
-        await addBillHistory(newEntry);
-        if (monthPaidFor === getCurrentMonthYearString()) {
-          await updateBill({ ...bill, status: 'pagado', associatedExpenseId: updated.id });
-        }
-      }
-    }
   };
 
   const handleRemoveExpense = async (id: string) => {
-    const oldExp = expenses.find(e => e.id === id);
-    if (oldExp && oldExp.recurrentBillId) {
-      const historyId = `hist-${oldExp.id}`;
-      const monthPaidFor = oldExp.recurrentBillMonth || getMonthYearStringFromDate(oldExp.date) || getCurrentMonthYearString();
-      await removeBillHistory(historyId);
-      if (monthPaidFor === getCurrentMonthYearString()) {
-        const bill = bills.find(b => b.id === oldExp.recurrentBillId);
-        if (bill) await updateBill({ ...bill, status: 'por pagar', associatedExpenseId: undefined });
-      }
-    }
     await removeExpense(id);
   };
 
@@ -431,19 +388,6 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
       await updateBill({ ...b, status: 'por pagar', alertSent: false, associatedExpenseId: undefined });
     }
   };
-
-  useEffect(() => {
-    if (!data.loading && bills.length > 0) {
-      const currentMonthYear = getCurrentMonthYearString();
-      const lastCycleMonth = localStorage.getItem('depa_last_cycle_month');
-      if (!lastCycleMonth) {
-        localStorage.setItem('depa_last_cycle_month', currentMonthYear);
-      } else if (lastCycleMonth !== currentMonthYear) {
-        handleResetBillsForNewMonth();
-        localStorage.setItem('depa_last_cycle_month', currentMonthYear);
-      }
-    }
-  }, [data.loading]);
 
   const handleRemoveHistoryEntry = async (historyId: string) => {
     const entry = billHistory.find(h => h.id === historyId);
@@ -615,6 +559,24 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     );
   }
 
+  if (dataLoadError) {
+    return (
+      <div className="min-h-dvh bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center p-6">
+        <div className="w-full max-w-sm text-center space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-rose-100 dark:bg-rose-950/40 text-rose-600 mx-auto flex items-center justify-center">
+            <AlertTriangle size={24} />
+          </div>
+          <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">No pudimos cargar tu depa</h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">{dataLoadError}</p>
+          <button type="button" onClick={reload}
+            className="h-11 px-5 rounded-xl bg-indigo-600 text-white text-sm font-semibold">
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (noApartment) {
     return <ApartmentSetupScreen user={user} onReady={reload} initialCode={joinCode} />;
   }
@@ -644,9 +606,14 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     const rate = b.currency === 'USD' ? (b.exchangeRate || 3.80) : 1;
     return sum + b.amount * rate;
   }, 0);
-  const usedHogarCategories: string[] = Array.from(new Set(
-    expenses.filter(e => e.macroCategory !== 'personal').map(e => e.category).filter((c): c is string => !!c)
-  ));
+  // Una categoría está en uso si la tiene un gasto, un recurrente o un pago
+  // registrado de un recurrente. Antes solo se miraban los gastos, así que se
+  // podía quitar una categoría que solo usaba, por ejemplo, el recibo de luz.
+  const usedHogarCategories: string[] = Array.from(new Set([
+    ...expenses.filter(e => e.macroCategory !== 'personal').map(e => e.category),
+    ...bills.map(b => b.category),
+    ...billHistory.map(h => h.category),
+  ].filter((c): c is string => !!c)));
   const usedPersonalCategories: string[] = Array.from(new Set(
     expenses.filter(e => e.macroCategory === 'personal').map(e => e.category).filter((c): c is string => !!c)
   ));
@@ -685,6 +652,13 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
         </div>
       )}
 
+      {globalError && (
+        <div className="bg-rose-600 text-white text-[13px] font-semibold px-4 py-3 flex items-center gap-2 z-50 sticky top-0">
+          <AlertTriangle size={15} className="shrink-0" />
+          <span>{globalError}</span>
+        </div>
+      )}
+
       <header
         className="sticky top-0 z-40 bg-white/85 dark:bg-zinc-900/85 backdrop-blur-xl border-b border-zinc-200/50 dark:border-zinc-800/50"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
@@ -714,7 +688,12 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             <button
-              onClick={() => { import('./lib/supabase').then(({ supabase }) => supabase.auth.signOut()); }}
+              onClick={() => {
+                void import('./lib/supabase').then(async ({ supabase }) => {
+                  const { error } = await supabase.auth.signOut();
+                  if (error) showActionError(error, 'No se pudo cerrar la sesión.');
+                }).catch(error => showActionError(error, 'No se pudo cerrar la sesión.'));
+              }}
               className="w-10 h-10 flex items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 active:bg-zinc-100 dark:active:bg-zinc-800 transition-colors"
               aria-label="Cerrar sesión"
             >
@@ -812,11 +791,12 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                             className="w-8 h-8 flex items-center justify-center rounded-xl bg-zinc-50 dark:bg-zinc-800 text-zinc-400 hover:text-indigo-500 transition active:scale-90 cursor-pointer">
                             <Pencil size={14} />
                           </button>
-                          <button type="button" onClick={() => {
+                          <button type="button" disabled={!!r.userId} title={r.userId ? 'Los roommates con cuenta activa no se pueden eliminar desde aquí.' : 'Eliminar roommate'} onClick={() => {
                             if (roommates.length <= 1) return;
-                            handleUpdateRoommates(roommates.filter(x => x.id !== r.id));
+                            void handleUpdateRoommates(roommates.filter(x => x.id !== r.id))
+                              .catch(error => showActionError(error, 'No se pudo eliminar el roommate.'));
                           }}
-                            className="w-8 h-8 flex items-center justify-center rounded-xl bg-zinc-50 dark:bg-zinc-800 text-zinc-400 hover:text-rose-500 transition active:scale-90 cursor-pointer">
+                            className="w-8 h-8 flex items-center justify-center rounded-xl bg-zinc-50 dark:bg-zinc-800 text-zinc-400 hover:text-rose-500 transition active:scale-90 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">
                             <Trash2 size={14} />
                           </button>
                         </div>
@@ -827,14 +807,14 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                               defaultValue={r.name}
                               placeholder="Nombre"
                               autoFocus
-                              onBlur={e => handleUpdateRoommates(roommates.map(x => x.id === r.id ? { ...x, name: e.target.value.trim() || x.name } : x))}
+                              onBlur={e => { void handleUpdateRoommates(roommates.map(x => x.id === r.id ? { ...x, name: e.target.value.trim() || x.name } : x)).catch(error => showActionError(error, 'No se pudo actualizar el nombre.')); }}
                               className="w-full px-3 h-10 rounded-xl bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-[14px] font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-zinc-200 dark:border-zinc-600"
                             />
                             <div className="flex gap-2">
                               <div className="flex-1 relative">
                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-[12px]">S/</span>
                                 <input type="number" inputMode="decimal" defaultValue={r.income}
-                                  onBlur={e => handleUpdateRoommates(roommates.map(x => x.id === r.id ? { ...x, income: Number(e.target.value) } : x))}
+                                  onBlur={e => { void handleUpdateRoommates(roommates.map(x => x.id === r.id ? { ...x, income: Number(e.target.value) } : x)).catch(error => showActionError(error, 'No se pudo actualizar el ingreso.')); }}
                                   placeholder="Ingreso mensual"
                                   className="w-full pl-7 pr-3 h-10 rounded-xl bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-zinc-200 dark:border-zinc-600" />
                               </div>
@@ -869,17 +849,21 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                             onChange={e => setNewRoommateIncome(e.target.value === '' ? '' : Number(e.target.value))}
                             className="w-full pl-7 pr-2 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                         </div>
-                        <button type="button" onClick={() => {
+                        <button type="button" onClick={async () => {
                           if (!newRoommateName.trim()) return;
                           const colors = ['#6366f1','#ec4899','#10b981','#f59e0b','#3b82f6','#8b5cf6','#ef4444'];
                           const newR: Roommate = {
-                            id: `r-${Date.now()}`, name: newRoommateName.trim(),
+                            id: crypto.randomUUID(), name: newRoommateName.trim(),
                             income: Number(newRoommateIncome) || 0,
                             color: colors[roommates.length % colors.length],
                           };
-                          handleUpdateRoommates([...roommates, newR]);
-                          setNewRoommateName('');
-                          setNewRoommateIncome('');
+                          try {
+                            await handleUpdateRoommates([...roommates, newR]);
+                            setNewRoommateName('');
+                            setNewRoommateIncome('');
+                          } catch (error) {
+                            showActionError(error, 'No se pudo agregar el roommate.');
+                          }
                         }}
                           className="h-9 px-3 rounded-xl bg-indigo-600 text-white text-[12px] font-semibold cursor-pointer shrink-0">
                           <Check size={13} />
@@ -974,8 +958,9 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                       <CategoryPicker
                         suggestions={HOGAR_DEFAULT_CATEGORIES}
                         value={hogarCategories}
-                        onChange={setHogarCategories}
+                        onChange={list => { void setHogarCategories(list).catch(error => showActionError(error, 'No se pudieron guardar las categorías del hogar.')); }}
                         locked={usedHogarCategories}
+                        onRename={(from, to) => renameCategory(from, to, 'hogar')}
                       />
                     </div>
 
@@ -985,8 +970,9 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                       <CategoryPicker
                         suggestions={PERSONAL_DEFAULT_CATEGORIES}
                         value={personalCategories}
-                        onChange={setPersonalCategories}
+                        onChange={list => { void setPersonalCategories(list).catch(error => showActionError(error, 'No se pudieron guardar tus categorías personales.')); }}
                         locked={usedPersonalCategories}
+                        onRename={(from, to) => renameCategory(from, to, 'personal')}
                       />
                     </div>
                     {/* Default split */}
@@ -1022,12 +1008,19 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
                       )}
                     </div>
 
-                    <button type="button" onClick={() => {
-                      handleUpdateApartmentNameAndRent(homeApartmentName, homeRentCost, homeRentCurrency, homeRentExRate, homeMaintenanceCost, homeAddress);
-                      setHomeConfigOpen(false);
+                    <button type="button" disabled={homeSaving} onClick={async () => {
+                      setHomeSaving(true);
+                      try {
+                        await handleUpdateApartmentNameAndRent(homeApartmentName, homeRentCost, homeRentCurrency, homeRentExRate, homeMaintenanceCost, homeAddress);
+                        setHomeConfigOpen(false);
+                      } catch (error) {
+                        showActionError(error, 'No se pudo guardar la configuración.');
+                      } finally {
+                        setHomeSaving(false);
+                      }
                     }}
-                      className="w-full h-10 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-semibold text-[13px] rounded-xl transition flex items-center justify-center gap-2 cursor-pointer">
-                      <Check size={13} /> Guardar configuración
+                      className="w-full h-10 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-semibold text-[13px] rounded-xl transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-wait">
+                      {homeSaving ? <Loader size={13} className="animate-spin" /> : <Check size={13} />} Guardar configuración
                     </button>
                   </div>
                 )}
@@ -1172,3 +1165,4 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     </div>
   );
 }
+

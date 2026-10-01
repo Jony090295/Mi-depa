@@ -40,12 +40,22 @@ async function compress(file: File, maxDim = 1600, quality = 0.8): Promise<Blob>
 
 /**
  * Sube un recibo y devuelve la ruta a guardar en expenses.receipt_image.
- * El primer segmento debe ser el apartment_id: las políticas de Storage
- * lo leen para decidir quién puede ver el archivo.
+ * El primer segmento es apartment_id; los siguientes separan recibos de
+ * hogar de recibos personales y permiten que Storage aplique privacidad.
  */
-export async function uploadReceipt(file: File, apartmentId: string): Promise<string> {
+export async function uploadReceipt(
+  file: File,
+  apartmentId: string,
+  visibility: 'hogar' | 'personal',
+  currentRoommateId?: string,
+): Promise<string> {
+  if (visibility === 'personal' && !currentRoommateId) {
+    throw new Error('No se pudo verificar el propietario del recibo personal.');
+  }
   const blob = await compress(file);
-  const path = `${apartmentId}/${crypto.randomUUID()}.jpg`;
+  const path = visibility === 'personal'
+    ? `${apartmentId}/personal/${currentRoommateId}/${crypto.randomUUID()}.jpg`
+    : `${apartmentId}/hogar/${crypto.randomUUID()}.jpg`;
 
   const { error } = await supabase.storage
     .from(BUCKET)

@@ -4,14 +4,14 @@ import { Phone, Star, Plus, Search, MessageSquare, ChevronDown, ChevronUp, Light
 
 interface CommunityTabProps {
   posts: ForumPost[];
-  onAddPost: (post: ForumPost) => void;
-  onAddReply: (postId: string, reply: ForumReply) => void;
-  onUpdatePost: (id: string, updates: { title: string; content: string }) => void;
-  onDeletePost: (id: string) => void;
+  onAddPost: (post: ForumPost) => Promise<void>;
+  onAddReply: (postId: string, reply: ForumReply) => Promise<void>;
+  onUpdatePost: (id: string, updates: { title: string; content: string }) => Promise<void>;
+  onDeletePost: (id: string) => Promise<void>;
   trustedServices: TrustedService[];
-  onAddTrustedService: (svc: TrustedService) => void;
-  onUpdateTrustedService: (id: string, updates: Partial<TrustedService>) => void;
-  onDeleteTrustedService: (id: string) => void;
+  onAddTrustedService: (svc: TrustedService) => Promise<void>;
+  onUpdateTrustedService: (id: string, updates: Partial<TrustedService>) => Promise<void>;
+  onDeleteTrustedService: (id: string) => Promise<void>;
   currentUserId: string;
 }
 
@@ -40,6 +40,8 @@ const TYPE_META = {
 
 export default function CommunityTab({ posts, onAddPost, onAddReply, onUpdatePost, onDeletePost, trustedServices: services, onAddTrustedService, onUpdateTrustedService, onDeleteTrustedService, currentUserId }: CommunityTabProps) {
   const [section, setSection] = useState<'directory' | 'forum'>('directory');
+  const [actionError, setActionError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   // ── Directory state ──────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery]     = useState('');
@@ -96,32 +98,56 @@ export default function CommunityTab({ posts, onAddPost, onAddReply, onUpdatePos
       phone: svcPhone.trim(), rating: svcRating, description: svcReview.trim(),
       recommendedBy: svcRecommendedBy.trim() || 'Vecino de Mi Depa',
     };
-    onAddTrustedService(local);
-    setSvcName(''); setSvcPhone(''); setSvcReview(''); setSvcRecommendedBy(''); setSvcRating(5);
-    setShowAddService(false);
+    setActionError('');
+    setSaving(true);
+    try {
+      await onAddTrustedService(local);
+      setSvcName(''); setSvcPhone(''); setSvcReview(''); setSvcRecommendedBy(''); setSvcRating(5);
+      setShowAddService(false);
+    } catch (error) {
+      console.error('Error adding trusted service:', error);
+      setActionError(error instanceof Error ? error.message : 'No se pudo agregar el contacto.');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleAddPostSubmit = (e: React.FormEvent) => {
+  const handleAddPostSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!postTitle.trim() || !postContent.trim() || !postAuthor.trim()) return;
-    onAddPost({
-      id: crypto.randomUUID(), author: postAuthor.trim(), title: postTitle.trim(),
-      content: postContent.trim(), type: postType,
-      createdAt: new Date().toISOString(), replies: [],
-    });
-    setPostTitle(''); setPostContent(''); setPostAuthor(''); setPostType('tip');
-    setShowAddPost(false);
+    setActionError('');
+    setSaving(true);
+    try {
+      await onAddPost({
+        id: crypto.randomUUID(), author: postAuthor.trim(), title: postTitle.trim(),
+        content: postContent.trim(), type: postType,
+        createdAt: new Date().toISOString(), replies: [],
+      });
+      setPostTitle(''); setPostContent(''); setPostAuthor(''); setPostType('tip');
+      setShowAddPost(false);
+    } catch (error) {
+      console.error('Error adding forum post:', error);
+      setActionError(error instanceof Error ? error.message : 'No se pudo publicar en el foro.');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleReply = (postId: string) => {
+  const handleReply = async (postId: string) => {
     const text = replyText[postId]?.trim();
     const author = replyAuthor[postId]?.trim();
     if (!text || !author) return;
-    onAddReply(postId, {
-      id: crypto.randomUUID(), author, content: text, createdAt: new Date().toISOString(),
-    });
-    setReplyText(p => ({ ...p, [postId]: '' }));
-    setReplyAuthor(p => ({ ...p, [postId]: '' }));
+    setActionError('');
+    try {
+      await onAddReply(postId, {
+        id: crypto.randomUUID(), author, content: text, createdAt: new Date().toISOString(),
+      });
+      setReplyText(p => ({ ...p, [postId]: '' }));
+      setReplyAuthor(p => ({ ...p, [postId]: '' }));
+    } catch (error) {
+      console.error('Error adding forum reply:', error);
+      setActionError(error instanceof Error ? error.message : 'No se pudo publicar la respuesta.');
+    }
   };
 
   const openEditPost = (post: ForumPost) => {
@@ -130,11 +156,20 @@ export default function CommunityTab({ posts, onAddPost, onAddReply, onUpdatePos
     setEditPostContent(post.content);
   };
 
-  const handleSaveEditPost = (e: React.FormEvent) => {
+  const handleSaveEditPost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editPost || !editPostTitle.trim() || !editPostContent.trim()) return;
-    onUpdatePost(editPost.id, { title: editPostTitle.trim(), content: editPostContent.trim() });
-    setEditPost(null);
+    setActionError('');
+    setSaving(true);
+    try {
+      await onUpdatePost(editPost.id, { title: editPostTitle.trim(), content: editPostContent.trim() });
+      setEditPost(null);
+    } catch (error) {
+      console.error('Error updating forum post:', error);
+      setActionError(error instanceof Error ? error.message : 'No se pudo actualizar la publicación.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const openEditService = (svc: TrustedService) => {
@@ -147,15 +182,44 @@ export default function CommunityTab({ posts, onAddPost, onAddReply, onUpdatePos
     setEditSvcRecommendedBy(svc.recommendedBy ?? '');
   };
 
-  const handleSaveEditService = (e: React.FormEvent) => {
+  const handleSaveEditService = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editService || !editSvcName.trim() || !editSvcPhone.trim() || !editSvcReview.trim()) return;
-    onUpdateTrustedService(editService.id, {
-      name: editSvcName.trim(), category: editSvcCategory,
-      phone: editSvcPhone.trim(), rating: editSvcRating,
-      description: editSvcReview.trim(), recommendedBy: editSvcRecommendedBy.trim(),
-    });
-    setEditService(null);
+    setActionError('');
+    setSaving(true);
+    try {
+      await onUpdateTrustedService(editService.id, {
+        name: editSvcName.trim(), category: editSvcCategory,
+        phone: editSvcPhone.trim(), rating: editSvcRating,
+        description: editSvcReview.trim(), recommendedBy: editSvcRecommendedBy.trim(),
+      });
+      setEditService(null);
+    } catch (error) {
+      console.error('Error updating trusted service:', error);
+      setActionError(error instanceof Error ? error.message : 'No se pudo actualizar el contacto.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeletePost = async (id: string) => {
+    setActionError('');
+    try {
+      await onDeletePost(id);
+    } catch (error) {
+      console.error('Error deleting forum post:', error);
+      setActionError(error instanceof Error ? error.message : 'No se pudo eliminar la publicación.');
+    }
+  };
+
+  const handleDeleteService = async (id: string) => {
+    setActionError('');
+    try {
+      await onDeleteTrustedService(id);
+    } catch (error) {
+      console.error('Error deleting trusted service:', error);
+      setActionError(error instanceof Error ? error.message : 'No se pudo eliminar el contacto.');
+    }
   };
 
   // ── Filtered lists ───────────────────────────────────────────────────────
@@ -171,6 +235,13 @@ export default function CommunityTab({ posts, onAddPost, onAddReply, onUpdatePos
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
+
+      {actionError && (
+        <div className="rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 px-4 py-3 flex items-start gap-2 text-[13px] text-rose-700 dark:text-rose-300">
+          <span className="flex-1">{actionError}</span>
+          <button type="button" onClick={() => setActionError('')} aria-label="Cerrar error"><X size={14} /></button>
+        </div>
+      )}
 
       {/* Sub-tabs */}
       <div className="flex p-0.5 bg-zinc-100 dark:bg-zinc-800 rounded-2xl">
@@ -243,7 +314,7 @@ export default function CommunityTab({ posts, onAddPost, onAddReply, onUpdatePos
                             className="w-8 h-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-indigo-600 transition">
                             <Pencil size={13} />
                           </button>
-                          <button type="button" onClick={() => { if (confirm('¿Eliminar este contacto?')) onDeleteTrustedService(s.id); }}
+                          <button type="button" onClick={() => { if (confirm('¿Eliminar este contacto?')) void handleDeleteService(s.id); }}
                             className="w-8 h-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-rose-600 transition">
                             <Trash2 size={13} />
                           </button>
@@ -343,7 +414,7 @@ export default function CommunityTab({ posts, onAddPost, onAddReply, onUpdatePos
                                 className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-indigo-600 transition">
                                 <Pencil size={12} /> Editar
                               </button>
-                              <button type="button" onClick={() => { if (confirm('¿Eliminar esta publicación?')) onDeletePost(post.id); }}
+                              <button type="button" onClick={() => { if (confirm('¿Eliminar esta publicación?')) void handleDeletePost(post.id); }}
                                 className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-rose-600 transition">
                                 <Trash2 size={12} /> Eliminar
                               </button>
@@ -379,9 +450,9 @@ export default function CommunityTab({ posts, onAddPost, onAddReply, onUpdatePos
                             <input type="text" placeholder="Escribe una respuesta…"
                               value={replyText[post.id] || ''}
                               onChange={e => setReplyText(p => ({ ...p, [post.id]: e.target.value }))}
-                              onKeyDown={e => e.key === 'Enter' && handleReply(post.id)}
+                              onKeyDown={e => { if (e.key === 'Enter') void handleReply(post.id); }}
                               className="flex-1 h-8 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-[12px] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                            <button type="button" onClick={() => handleReply(post.id)}
+                            <button type="button" onClick={() => { void handleReply(post.id); }}
                               className="h-8 px-3 rounded-xl bg-indigo-600 text-white text-[12px] font-semibold cursor-pointer active:scale-95 transition">
                               Enviar
                             </button>
@@ -464,9 +535,9 @@ export default function CommunityTab({ posts, onAddPost, onAddReply, onUpdatePos
             </form>
             {/* Footer */}
             <div className="px-6 pt-3 pb-4 flex-shrink-0 border-t border-zinc-100 dark:border-zinc-800">
-              <button type="submit" form="add-service-form"
-                className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold text-[15px] rounded-2xl transition cursor-pointer">
-                Agregar al directorio
+              <button type="submit" form="add-service-form" disabled={saving}
+                className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold text-[15px] rounded-2xl transition cursor-pointer disabled:opacity-60 disabled:cursor-wait">
+                {saving ? 'Guardando…' : 'Agregar al directorio'}
               </button>
             </div>
           </div>
@@ -526,9 +597,9 @@ export default function CommunityTab({ posts, onAddPost, onAddReply, onUpdatePos
               </div>
             </form>
             <div className="px-6 pt-3 pb-4 flex-shrink-0 border-t border-zinc-100 dark:border-zinc-800">
-              <button type="submit" form="edit-service-form"
-                className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold text-[15px] rounded-2xl transition cursor-pointer">
-                Guardar cambios
+              <button type="submit" form="edit-service-form" disabled={saving}
+                className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold text-[15px] rounded-2xl transition cursor-pointer disabled:opacity-60 disabled:cursor-wait">
+                {saving ? 'Guardando…' : 'Guardar cambios'}
               </button>
             </div>
           </div>
@@ -561,9 +632,9 @@ export default function CommunityTab({ posts, onAddPost, onAddReply, onUpdatePos
               </div>
             </form>
             <div className="px-6 pt-3 pb-4 flex-shrink-0 border-t border-zinc-100 dark:border-zinc-800">
-              <button type="submit" form="edit-post-form"
-                className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold text-[15px] rounded-2xl transition cursor-pointer">
-                Guardar cambios
+              <button type="submit" form="edit-post-form" disabled={saving}
+                className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold text-[15px] rounded-2xl transition cursor-pointer disabled:opacity-60 disabled:cursor-wait">
+                {saving ? 'Guardando…' : 'Guardar cambios'}
               </button>
             </div>
           </div>
@@ -619,9 +690,9 @@ export default function CommunityTab({ posts, onAddPost, onAddReply, onUpdatePos
             </form>
             {/* Footer */}
             <div className="px-6 pt-3 pb-4 flex-shrink-0 border-t border-zinc-100 dark:border-zinc-800">
-              <button type="submit" form="add-post-form"
-                className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold text-[15px] rounded-2xl transition cursor-pointer">
-                Publicar
+              <button type="submit" form="add-post-form" disabled={saving}
+                className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold text-[15px] rounded-2xl transition cursor-pointer disabled:opacity-60 disabled:cursor-wait">
+                {saving ? 'Publicando…' : 'Publicar'}
               </button>
             </div>
           </div>
