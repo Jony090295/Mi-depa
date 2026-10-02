@@ -548,70 +548,13 @@ export default function ExpensesTab({
     }
   };
 
-  // Compile all available months from the expenses list
-  const allAvailableMonths = Array.from(new Set(expenses.map(e => getMonthYearStringFromDate(e.date || ''))))
-    .filter(m => m !== '')
-    .sort((a, b) => {
-      const parseMonthString = (ms: string) => {
-        const parts = ms.split(' ');
-        if (parts.length < 2) return 0;
-        const year = parseInt(parts[1], 10);
-        const monthNames = [
-          "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-          "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-        ];
-        const mIndex = monthNames.indexOf(parts[0]);
-        return year * 12 + (mIndex !== -1 ? mIndex : 0);
-      };
-      return parseMonthString(b) - parseMonthString(a);
-    });
-
-  // Ensure current month is always present in available settlement months
-  if (!allAvailableMonths.includes(currentMonthName)) {
-    allAvailableMonths.unshift(currentMonthName);
-  }
-
-  // Group all expenses by month for the history view (skip fake settlement expenses)
+  // Gastos que se pueden listar (sin las liquidaciones viejas guardadas como gasto)
   const filteredExpenses = expenses.filter(e => {
     if (e.title.startsWith('💵 Liquidación:')) return false;
     // Personal expenses only visible to the roommate who paid them.
     // If currentRoommateId is unknown, show all personal expenses (safe fallback).
     if (e.macroCategory === 'personal' && currentRoommateId && e.paidBy !== currentRoommateId) return false;
     return true;
-  });
-  const groupedExpenses: { month: string; items: Expense[] }[] = [];
-  filteredExpenses.forEach((expense) => {
-    const monthStr = getMonthYearStringFromDate(expense.date || '') || 'Sin periodo';
-    let group = groupedExpenses.find(g => g.month === monthStr);
-    if (!group) {
-      group = { month: monthStr, items: [] };
-      groupedExpenses.push(group);
-    }
-    group.items.push(expense);
-  });
-
-  // Sort items within each group by date descending
-  groupedExpenses.forEach(g => {
-    g.items.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  });
-
-  // Sort groups chronologically descending
-  groupedExpenses.sort((a, b) => {
-    if (a.month === 'Sin periodo') return 1;
-    if (b.month === 'Sin periodo') return -1;
-
-    const parseMonthString = (ms: string) => {
-      const parts = ms.split(' ');
-      if (parts.length < 2) return 0;
-      const year = parseInt(parts[1], 10);
-      const monthNames = [
-        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-      ];
-      const mIndex = monthNames.indexOf(parts[0]);
-      return year * 12 + (mIndex !== -1 ? mIndex : 0);
-    };
-    return parseMonthString(b.month) - parseMonthString(a.month);
   });
 
   const settlements = calculateSettlements(expenses, roommates, settlementHistory);
@@ -695,12 +638,16 @@ export default function ExpensesTab({
   const yesterday = localDateISO(new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - 1));
   const currentMonthPrefix = today.slice(0, 7);
 
+  // Ordenados por la fecha del gasto, lo más reciente arriba. Sin esto salían
+  // en orden de registro: un gasto del 20/09 cargado hoy quedaba primero y su
+  // grupo "09 20" aparecía por encima de "Hoy". A igual fecha manda el orden
+  // de llegada (el registrado más reciente primero), porque sort es estable.
   const visibleExpenses = filteredExpenses.filter(e => {
     if (e.macroCategory === 'personal' && currentRoommateId && e.paidBy !== currentRoommateId) return false;
     if (filterMacro !== 'todos' && e.macroCategory !== filterMacro) return false;
     if (filterMonth === 'mes' && !(e.date || '').startsWith(currentMonthPrefix)) return false;
     return true;
-  });
+  }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
   const groupedByDate: { label: string; items: Expense[] }[] = [];
   visibleExpenses.forEach(e => {
