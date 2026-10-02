@@ -832,9 +832,6 @@ export default function ExpensesTab({
                         ? solesTotal.map((s, i) => debtRow(s, `t${i}`, false))
                         : <p className="text-[13px] font-semibold text-emerald-700">En soles quedan a mano</p>}
                     </div>
-                    <p className="text-[11px] mt-2" style={{ color: '#7C5CFC', opacity: 0.75 }}>
-                      Total en soles, con los dólares a S/ {tcLabel}{usdToPenSource ? ` (${usdToPenSource})` : ''}. Para pagar, abre el detalle.
-                    </p>
                     <button type="button" onClick={() => setShowCurrencyDetail(v => !v)}
                       aria-expanded={showCurrencyDetail}
                       className="mt-3 w-full flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest" style={{ color: '#7C5CFC', opacity: 0.7 }}>
@@ -845,6 +842,9 @@ export default function ExpensesTab({
                     {showCurrencyDetail && (
                       <div className="flex flex-col gap-3 mt-3 pt-3 border-t border-black/5 animate-fadeIn">
                         {settlements.map(s => debtRow(s, settleKey(s), true))}
+                        <p className="text-[11px]" style={{ color: '#7C5CFC', opacity: 0.75 }}>
+                          Para el total: US$ 1 = S/ {tcLabel}{usdToPenSource ? ` · ${usdToPenSource}` : ''}
+                        </p>
                       </div>
                     )}
                   </>
