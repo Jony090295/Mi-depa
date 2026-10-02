@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { getCategoryLabel } from '../utils';
+import { getCategoryLabel, localMonthISO } from '../utils';
 import {
   Roommate, Expense, RecurrentBill, RecurrentBillHistory,
   ForumPost, ForumReply, SettlementRecord, TrustedService,
@@ -362,7 +362,7 @@ export function useApartmentData(user: User) {
     const bill = bills.find(b => b.id === id);
     if (!bill) return;
     if (billHistory.some(h => h.billId === id)) {
-      await updateBill({ ...bill, deletedAt: new Date().toISOString().slice(0, 7) });
+      await updateBill({ ...bill, deletedAt: localMonthISO() });
     } else {
       await removeBill(id);
     }

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Roommate, Expense, ExpenseCategory, SplitType, RecurrentBill, SettlementRecord } from '../types';
-import { CATEGORY_LABELS, getCategoryLabel, inferCategoryFromName, netSettlementsInSoles } from '../utils';
+import { CATEGORY_LABELS, getCategoryLabel, inferCategoryFromName, netSettlementsInSoles, localDateISO, localMonthISO, parseLocalDate } from '../utils';
 import { uploadReceipt, useReceiptUrl } from '../lib/receipts';
 import { categoryIcon } from '../lib/categoryIcons';
 import { calculateSettlements } from '../utils';
@@ -80,7 +80,7 @@ export default function ExpensesTab({
   const [showInfo, setShowInfo] = useState(false);
   const [isFormExpanded, setIsFormExpanded] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(() => localDateISO());
   // La deuda que se está confirmando, identificada por quién→quién y moneda,
   // NO por su posición: al pagar, la lista se achica y un índice pasaba a
   // apuntar a otra deuda — o a ninguna, y la pantalla quedaba en blanco.
@@ -169,7 +169,7 @@ export default function ExpensesTab({
       amount: parseFloat(sett.amount.toFixed(2)),
       currency: sett.currency,
       exchangeRate: sett.currency === 'USD' ? usdToPen : 1,
-      date: new Date().toISOString().split('T')[0],
+      date: localDateISO(),
     };
     setActionError('');
     try {
@@ -198,7 +198,7 @@ export default function ExpensesTab({
     setAmountInput(expense.amount);
     setCategory(expense.category);
     setPaidBy(expense.macroCategory === 'personal' && currentRoommateId ? currentRoommateId : expense.paidBy);
-    setDate(expense.date || new Date().toISOString().split('T')[0]);
+    setDate(expense.date || localDateISO());
     setSplitType(expense.splitType);
     setCurrency(expense.currency || 'PEN');
     setExchangeRateInput(expense.exchangeRate || 1);
@@ -207,7 +207,7 @@ export default function ExpensesTab({
       setCustomPercentages(Object.fromEntries(Object.entries(expense.splits).map(([k, v]) => [k, String(v)])));
     }
     setAssociatedBillId(expense.recurrentBillId || '');
-    setRecurrentBillMonth(expense.recurrentBillMonth || getMonthYearStringFromDate(expense.date || new Date().toISOString().split('T')[0]));
+    setRecurrentBillMonth(expense.recurrentBillMonth || getMonthYearStringFromDate(expense.date || localDateISO()));
     setMacroCategory(expense.macroCategory ?? 'hogar');
     setShowSplitConfig(false);
     setShowDatePicker(false);
@@ -223,7 +223,7 @@ export default function ExpensesTab({
     setAmountInput('');
     setCategory('comida');
     setPaidBy(currentRoommateId || roommates[0]?.id || '');
-    setDate(new Date().toISOString().split('T')[0]);
+    setDate(localDateISO());
     setSplitType(defaultSplitType);
     setCurrency('PEN');
     setExchangeRateInput(1);
@@ -425,7 +425,7 @@ export default function ExpensesTab({
         category,
         macroCategory,
         paidBy: expensePaidBy,
-        date: date || new Date().toISOString().split('T')[0],
+        date: date || localDateISO(),
         splitType,
         splits: splitsRecord,
         calculatedShares,
@@ -446,7 +446,7 @@ export default function ExpensesTab({
         category,
         macroCategory,
         paidBy: expensePaidBy,
-        date: date || new Date().toISOString().split('T')[0],
+        date: date || localDateISO(),
         splitType,
         splits: splitsRecord,
         calculatedShares,
@@ -474,7 +474,7 @@ export default function ExpensesTab({
           paidBy: macroCategory === 'personal' ? currentRoommateId : expensePaidBy,
           category,
           macroCategory,
-          createdAt: new Date().toISOString().slice(0, 7),
+          createdAt: localMonthISO(),
         };
         await onAddBill(newBill);
         newExpense.recurrentBillId = newBill.id;
@@ -502,7 +502,7 @@ export default function ExpensesTab({
     setAmountInput('');
     setCategory('comida');
     setPaidBy(currentRoommateId || roommates[0]?.id || '');
-    setDate(new Date().toISOString().split('T')[0]);
+    setDate(localDateISO());
     setSplitType(defaultSplitType);
     setCurrency('PEN');
     setExchangeRateInput(1);
@@ -691,8 +691,8 @@ export default function ExpensesTab({
   };
 
   // ── Filtros y agrupación por fecha para la lista ──
-  const today = new Date().toISOString().split('T')[0];
-  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  const today = localDateISO();
+  const yesterday = localDateISO(new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - 1));
   const currentMonthPrefix = today.slice(0, 7);
 
   const visibleExpenses = filteredExpenses.filter(e => {
@@ -932,7 +932,7 @@ export default function ExpensesTab({
                   const toR   = resolvedAllRoommates.find(r => r.id === rec.toId);
                   const fromName = fromR?.name || rec.fromId;
                   const toName   = toR?.name   || rec.toId;
-                  const dateStr  = new Date(rec.date).toLocaleDateString('es-PE', { day: 'numeric', month: 'short' });
+                  const dateStr  = parseLocalDate(rec.date).toLocaleDateString('es-PE', { day: 'numeric', month: 'short' });
                   return (
                     <div key={rec.id} className={`flex items-center justify-between py-2.5 ${i > 0 ? 'border-t border-black/5' : ''}`}>
                       <div className="flex items-center gap-2 min-w-0">
@@ -1572,7 +1572,7 @@ export default function ExpensesTab({
                         className="w-full h-[52px] flex items-center justify-center gap-1.5 rounded-2xl bg-white text-[13px] font-medium transition hover:brightness-[0.97] active:scale-[0.98]"
                         style={{ border: '1px solid rgba(80,80,120,0.08)', boxShadow: '0 2px 8px rgba(79,70,229,0.04)', color: '#242536' }}>
                         <Calendar size={15} className="text-indigo-400 shrink-0" aria-hidden="true" />
-                        <span className="truncate">{date === new Date().toISOString().split('T')[0] ? 'Hoy' : date.slice(5)}</span>
+                        <span className="truncate">{date === localDateISO() ? 'Hoy' : date.slice(5)}</span>
                         <ChevronDown size={13} style={{ color: '#8D90A5' }} />
                       </button>
                     ) : (

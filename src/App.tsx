@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { Roommate, Expense, RecurrentBill, RecurrentBillHistory, ForumPost, ForumReply, SettlementRecord, VariableReminder, HOGAR_DEFAULT_CATEGORIES, PERSONAL_DEFAULT_CATEGORIES } from './types';
-import { calculateSettlements, configManagedBillKind, netSettlementsInSoles } from './utils';
+import { calculateSettlements, configManagedBillKind, netSettlementsInSoles, localDateISO } from './utils';
 
 // Auth + Supabase
 import { useAuth } from './hooks/useAuth';
@@ -330,7 +330,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
       const paidByToUse    = customSplitConfig ? customSplitConfig.paidBy    : (bill.paidBy || roommates[0]?.id || '');
       const splitsToUse    = customSplitConfig ? customSplitConfig.splits    : bill.splits;
       const monthPaidFor   = customSplitConfig?.monthPaidFor || getCurrentMonthYearString();
-      const datePaid       = customSplitConfig?.datePaid || new Date().toISOString().split('T')[0];
+      const datePaid       = customSplitConfig?.datePaid || localDateISO();
       const amountToUse    = (customSplitConfig && customSplitConfig.amount !== undefined) ? customSplitConfig.amount : bill.amount;
 
       const historyId = `hist-${bill.id}-${Date.now()}`;
@@ -473,7 +473,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
         const updatedExpense: Expense = {
           id: expenseId, title: `[Pago Recurrente] ${updatedBill.name}`,
           amount: updatedBill.amount, category: updatedBill.category || 'servicio',
-          paidBy: paidByToUse!, date: new Date().toISOString().split('T')[0],
+          paidBy: paidByToUse!, date: localDateISO(),
           splitType: splitTypeToUse as 'porcentaje' | 'proporcional' | 'equitativo',
           splits: splitsRecord, calculatedShares, currency: billCurrency, exchangeRate: billExchangeRate,
         };
@@ -514,7 +514,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
       id: historyId, billId, name: bill.name, amount: bill.amount,
       dueDate: bill.dueDate, paidBy: bill.paidBy || roommates[0]?.id || '',
       splitType: bill.splitType || 'no_dividir', monthPaidFor: month,
-      datePaid: new Date().toISOString().split('T')[0], status: 'descartado',
+      datePaid: localDateISO(), status: 'descartado',
       category: bill.category || 'servicio', isAutoDebit: bill.isAutoDebit,
     };
     const oldEntry = billHistory.find(h => h.billId === billId && h.monthPaidFor === month);
@@ -542,7 +542,7 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
   };
 
   const handleMarkVariableReminderDone = (id: string) => {
-    setVariableReminders(prev => prev.map(r => r.id === id ? { ...r, lastDone: new Date().toISOString().split('T')[0] } : r));
+    setVariableReminders(prev => prev.map(r => r.id === id ? { ...r, lastDone: localDateISO() } : r));
   };
 
   const handleAddPost = async (p: ForumPost) => {

@@ -30,6 +30,34 @@ export function configManagedBillKind(bill: { name: string; macroCategory?: stri
   return null;
 }
 
+/**
+ * Fecha local del teléfono como 'YYYY-MM-DD'.
+ *
+ * NO usar new Date().toISOString().slice(0, 10): eso da la fecha en UTC, y en
+ * Lima (UTC−5) desde las 7 pm ya devuelve el día siguiente — un gasto
+ * registrado a las 8 pm del 1 de octubre quedaba con fecha 2 de octubre.
+ */
+export function localDateISO(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Mes local como 'YYYY-MM'. Ver localDateISO. */
+export function localMonthISO(d: Date = new Date()): string {
+  return localDateISO(d).slice(0, 7);
+}
+
+/**
+ * Lee una fecha 'YYYY-MM-DD' como medianoche LOCAL. new Date('2026-10-01')
+ * la toma como medianoche UTC, que en Lima son las 7 pm del día anterior, y
+ * se mostraba un día antes.
+ */
+export function parseLocalDate(s: string): Date {
+  return new Date(/^\d{4}-\d{2}-\d{2}$/.test(s) ? `${s}T00:00:00` : s);
+}
+
 export function getCategoryLabel(cat: string): string {
   return CATEGORY_LABELS[cat]?.label ?? cat.charAt(0).toUpperCase() + cat.slice(1);
 }
