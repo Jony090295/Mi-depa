@@ -4,6 +4,7 @@ import { Roommate, Expense, ExpenseCategory, SplitType, RecurrentBill, Settlemen
 import { CATEGORY_LABELS, getCategoryLabel, inferCategoryFromName, netSettlementsInSoles, localDateISO, localMonthISO, parseLocalDate } from '../utils';
 import { uploadReceipt, useReceiptUrl } from '../lib/receipts';
 import { categoryIcon } from '../lib/categoryIcons';
+import { useTcSbs, lastUsdRate, shortDate } from '../lib/exchangeRate';
 import { calculateSettlements } from '../utils';
 import { Plus, Trash2, Split, Calendar, ArrowRight, Info, Check, Pencil, X, AlertTriangle, Camera, FileText, ArrowLeft, ChevronDown, ChevronRight, Home, User, Zap, ShoppingCart, Droplet, CreditCard, Car, MoreHorizontal, Heart, Tag, Activity, RefreshCw, Loader } from 'lucide-react';
 
@@ -23,8 +24,10 @@ interface ExpensesTabProps {
   onAddPersonalCategory?: (name: string) => Promise<void>;
   /** Abre la pantalla de categorías encima del formulario, sin desmontarlo. */
   onManageCategories?: (macro: 'hogar' | 'personal') => void;
-  /** Tipo de cambio de Configuración del depa, para el total en soles. */
+  /** Tipo de cambio para el total en soles de los balances. */
   usdToPen?: number;
+  /** De dónde sale usdToPen, para decirlo junto al total ("TC SBS del 30/09"). */
+  usdToPenSource?: string;
   prefilledBillId?: string;
   onClearPrefilledBillId?: () => void;
   settlementHistory?: SettlementRecord[];
@@ -52,6 +55,7 @@ export default function ExpensesTab({
   onAddPersonalCategory,
   onManageCategories,
   usdToPen = 3.8,
+  usdToPenSource,
   prefilledBillId,
   onClearPrefilledBillId,
   settlementHistory = [],
@@ -76,6 +80,9 @@ export default function ExpensesTab({
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [currency, setCurrency] = useState<'PEN' | 'USD'>('PEN');
   const [exchangeRateInput, setExchangeRateInput] = useState<number | ''>(1);
+  // true si el tipo de cambio lo puso el usuario (o es el de un gasto que se
+  // está editando): entonces el de la SBS no lo pisa.
+  const [tcManual, setTcManual] = useState(false);
   const [expandedExpenses, setExpandedExpenses] = useState<Record<string, boolean>>({});
   const [showInfo, setShowInfo] = useState(false);
   const [isFormExpanded, setIsFormExpanded] = useState(false);
@@ -202,6 +209,7 @@ export default function ExpensesTab({
     setSplitType(expense.splitType);
     setCurrency(expense.currency || 'PEN');
     setExchangeRateInput(expense.exchangeRate || 1);
+    setTcManual(true);
     setReceiptImage(expense.receiptImage);
     if (expense.splitType === 'porcentaje') {
       setCustomPercentages(Object.fromEntries(Object.entries(expense.splits).map(([k, v]) => [k, String(v)])));
@@ -227,6 +235,7 @@ export default function ExpensesTab({
     setSplitType(defaultSplitType);
     setCurrency('PEN');
     setExchangeRateInput(1);
+    setTcManual(false);
     setReceiptImage(undefined);
     setAssociatedBillId('');
     setRecurrentBillMonth(currentMonthName);
@@ -293,6 +302,17 @@ export default function ExpensesTab({
   // formulario no puede quedarse con el nombre viejo: al guardar recrearía una
   // categoría huérfana. Se compara con la lista anterior para distinguir:
   // renombrar = sale una y entra otra en su lugar; eliminar = solo sale.
+  // Tipo de cambio SBS de la fecha del gasto (solo si es en dólares). Llena el
+  // campo salvo que el usuario lo haya escrito. Si el BCRP no responde, el
+  // respaldo es el TC del último gasto en dólares — antes era 3.80 fijo, que
+  // ya estaba ~10% lejos del real.
+  const { tc: sbsTc, loading: sbsLoading } = useTcSbs(currency === 'USD' ? (date || localDateISO()) : null);
+  const fallbackTc = lastUsdRate(expenses) ?? 3.8;
+  React.useEffect(() => {
+    if (currency !== 'USD' || tcManual || !sbsTc) return;
+    if (exchangeRateInput !== sbsTc.venta) setExchangeRateInput(sbsTc.venta);
+  }, [currency, tcManual, sbsTc, exchangeRateInput]);
+
   const activeCats = macroCategory === 'hogar' ? hogarCategories : personalCategories;
 
   // Recurrentes que se pueden cargar en el modo actual: los de hogar en
@@ -415,7 +435,7 @@ export default function ExpensesTab({
       calculatedShares[firstId] = parseFloat((calculatedShares[firstId] + diff).toFixed(2));
     }
 
-    const rate = currency === 'USD' ? Number(exchangeRateInput || 3.80) : 1;
+    const rate = currency === 'USD' ? Number(exchangeRateInput || fallbackTc) : 1;
 
     if (editingExpenseId) {
       const updatedExpense: Expense = {
@@ -506,6 +526,7 @@ export default function ExpensesTab({
     setSplitType(defaultSplitType);
     setCurrency('PEN');
     setExchangeRateInput(1);
+    setTcManual(false);
     setReceiptImage(undefined);
     setAssociatedBillId('');
     setRecurrentBillMonth(currentMonthName);
@@ -812,7 +833,7 @@ export default function ExpensesTab({
                         : <p className="text-[13px] font-semibold text-emerald-700">En soles quedan a mano</p>}
                     </div>
                     <p className="text-[11px] mt-2" style={{ color: '#7C5CFC', opacity: 0.75 }}>
-                      Total en soles, con los dólares a S/ {tcLabel}. Para pagar, abre el detalle.
+                      Total en soles, con los dólares a S/ {tcLabel}{usdToPenSource ? ` (${usdToPenSource})` : ''}. Para pagar, abre el detalle.
                     </p>
                     <button type="button" onClick={() => setShowCurrencyDetail(v => !v)}
                       aria-expanded={showCurrencyDetail}
@@ -1215,7 +1236,7 @@ export default function ExpensesTab({
                     <button
                       type="button"
                       aria-label="Cambiar moneda"
-                      onClick={() => { const n = currency === 'PEN' ? 'USD' : 'PEN'; setCurrency(n); setExchangeRateInput(n === 'USD' ? 3.80 : 1); }}
+                      onClick={() => { const n = currency === 'PEN' ? 'USD' : 'PEN'; setCurrency(n); setTcManual(false); setExchangeRateInput(n === 'USD' ? fallbackTc : 1); }}
                       className="flex items-center gap-1 h-11 px-3 rounded-xl font-bold text-[14px] text-indigo-700 transition hover:opacity-80 shrink-0"
                       style={{ background: '#EEF2FF', border: '1px solid #C7D2FE' }}
                     >
@@ -1239,11 +1260,37 @@ export default function ExpensesTab({
                     <div className="flex items-center gap-2 mt-3 pt-3" style={{ borderTop: '1px solid rgba(80,80,120,0.08)' }}>
                       <label className="text-[11px] font-medium shrink-0" style={{ color: '#8D90A5' }}>Tipo de cambio S//$</label>
                       <input type="number" inputMode="decimal" step="0.001" value={exchangeRateInput}
-                        onChange={(e) => setExchangeRateInput(e.target.value === '' ? '' : Number(e.target.value))}
-                        placeholder="3.80"
+                        onChange={(e) => { setTcManual(true); setExchangeRateInput(e.target.value === '' ? '' : Number(e.target.value)); }}
+                        placeholder={String(fallbackTc)}
+                        aria-describedby="tc-source"
                         className="flex-1 h-9 px-3 rounded-xl bg-gray-50 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
                         style={{ border: '1px solid rgba(80,80,120,0.10)' }} />
                     </div>
+                  )}
+                  {currency === 'USD' && (
+                    <p id="tc-source" className="text-[11px] mt-1.5" style={{ color: '#8D90A5' }}>
+                      {(() => {
+                        if (sbsTc && Number(exchangeRateInput) === sbsTc.venta) {
+                          return sbsTc.fechaTc === sbsTc.fecha
+                            ? `TC SBS del ${shortDate(sbsTc.fechaTc)}`
+                            : `TC SBS del ${shortDate(sbsTc.fechaTc)}, el último publicado antes de esta fecha`;
+                        }
+                        if (tcManual && sbsTc) {
+                          return (
+                            <>
+                              Lo escribiste tú ·{' '}
+                              <button type="button" className="font-semibold text-indigo-600 underline"
+                                onClick={() => { setTcManual(false); setExchangeRateInput(sbsTc.venta); }}>
+                                Usar SBS ({sbsTc.venta.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 3 })})
+                              </button>
+                            </>
+                          );
+                        }
+                        if (sbsLoading) return 'Buscando el tipo de cambio de ese día…';
+                        if (tcManual) return 'Lo escribiste tú';
+                        return 'No se pudo obtener el TC de la SBS: es el de tu último gasto en dólares. Puedes cambiarlo.';
+                      })()}
+                    </p>
                   )}
                   <p className="text-[12px] mt-2" style={{ color: '#8D90A5' }}>Ingresa el monto del gasto</p>
                 </div>

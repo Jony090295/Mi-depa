@@ -11,6 +11,7 @@ import ApartmentSetupScreen from './components/ApartmentSetupScreen';
 import ResetPasswordScreen from './components/ResetPasswordScreen';
 import InviteRoommatesModal from './components/InviteRoommatesModal';
 import CategoriesScreen from './components/CategoriesScreen';
+import { useTcSbs, lastUsdRate, shortDate } from './lib/exchangeRate';
 import RecurrentsScreen from './components/RecurrentsScreen';
 
 // Components
@@ -77,6 +78,11 @@ export default function AppShell() {
 
 function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
   const data = useApartmentData(user);
+
+  // TC SBS de hoy, para el total en soles de los balances. Va aquí arriba y no
+  // junto a donde se usa: es un hook, y abajo hay returns tempranos (cargando,
+  // sin depa…). Llamado después de ellos, React fallaría al terminar de cargar.
+  const { tc: todayTc } = useTcSbs(localDateISO());
 
   const {
     loading: dataLoading, loadError: dataLoadError, noApartment, onboardingComplete, reload,
@@ -611,11 +617,21 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
     return sum + b.amount * rate;
   }, 0);
 
+  // Tipo de cambio para convertir DEUDAS en dólares a soles: uno solo (con el
+  // de cada gasto, una suba del dólar crearía deudas que nadie generó). El
+  // SBS de hoy; si el BCRP no responde, el del último gasto en dólares; y
+  // recién al final el de Configuración, que es el del alquiler y envejece.
+  const lastUsd = lastUsdRate(expenses);
+  const balanceTc = todayTc?.venta ?? lastUsd ?? rentExchangeRate;
+  const balanceTcSource = todayTc
+    ? `TC SBS del ${shortDate(todayTc.fechaTc)}`
+    : lastUsd ? 'el de tu último gasto en dólares' : 'el de Configuración del depa';
+
   // Mismo número que el resumen de Gastos: con deudas en soles y dólares,
   // contar las de cada moneda por separado daba "2 deudas" donde en realidad
   // hay una sola compensada.
   const homeSettlements    = calculateSettlements(expenses, roommates, settlementHistory);
-  const pendingDebtsCount  = netSettlementsInSoles(homeSettlements, rentExchangeRate).length;
+  const pendingDebtsCount  = netSettlementsInSoles(homeSettlements, balanceTc).length;
 
   const tabMeta: Record<string, { label: string; sub?: string }> = {
     budget:           { label: apartmentName,    sub: `${roommates.length} roommates` },
@@ -1083,7 +1099,8 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
             onAddHogarCategory={addHogarCategory}
             onAddPersonalCategory={addPersonalCategory}
             onManageCategories={macro => setCategoriesOpen(macro)}
-            usdToPen={rentExchangeRate}
+            usdToPen={balanceTc}
+            usdToPenSource={balanceTcSource}
             prefilledBillId={prefilledBillId}
             onClearPrefilledBillId={() => setPrefilledBillId('')}
             settlementHistory={settlementHistory}
