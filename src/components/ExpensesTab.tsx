@@ -5,6 +5,7 @@ import { CATEGORY_LABELS, getCategoryLabel, inferCategoryFromName, netSettlement
 import { uploadReceipt, useReceiptUrl } from '../lib/receipts';
 import { categoryIcon } from '../lib/categoryIcons';
 import { useTcSbs, lastUsdRate, shortDate } from '../lib/exchangeRate';
+import ExpenseFilters, { monthLabel, type MonthOption } from './ExpenseFilters';
 import { calculateSettlements } from '../utils';
 import { Plus, Trash2, Split, Calendar, ArrowRight, Info, Check, Pencil, X, AlertTriangle, Camera, FileText, ArrowLeft, ChevronDown, ChevronRight, Home, User, Zap, ShoppingCart, Droplet, CreditCard, Car, MoreHorizontal, Heart, Tag, Activity, RefreshCw, Loader } from 'lucide-react';
 
@@ -122,7 +123,8 @@ export default function ExpensesTab({
   const [payerDropdownPos, setPayerDropdownPos] = useState({ top: 0, left: 0 });
   const payerBtnRef = useRef<HTMLButtonElement>(null);
   const [filterMacro, setFilterMacro] = useState<'todos' | 'hogar' | 'personal'>('todos');
-  const [filterMonth, setFilterMonth] = useState<'mes' | 'todo'>('mes');
+  // Mes a mostrar ('YYYY-MM') o 'todo'. Por defecto el mes actual.
+  const [filterMonth, setFilterMonth] = useState<string>(() => localMonthISO());
   const imageInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -663,12 +665,30 @@ export default function ExpensesTab({
   // en orden de registro: un gasto del 20/09 cargado hoy quedaba primero y su
   // grupo "09 20" aparecía por encima de "Hoy". A igual fecha manda el orden
   // de llegada (el registrado más reciente primero), porque sort es estable.
-  const visibleExpenses = filteredExpenses.filter(e => {
+  const toSoles = (e: Expense) => e.amount * (e.currency === 'USD' ? (e.exchangeRate || usdToPen) : 1);
+
+  // Gastos del tipo elegido, de cualquier mes: base para la lista y para los
+  // totales del desplegable de meses.
+  const byMacro = filteredExpenses.filter(e => {
     if (e.macroCategory === 'personal' && currentRoommateId && e.paidBy !== currentRoommateId) return false;
     if (filterMacro !== 'todos' && e.macroCategory !== filterMacro) return false;
-    if (filterMonth === 'mes' && !(e.date || '').startsWith(currentMonthPrefix)) return false;
     return true;
-  }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  });
+
+  const visibleExpenses = byMacro
+    .filter(e => filterMonth === 'todo' || (e.date || '').startsWith(filterMonth))
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  // Meses con gastos (más el actual, aunque esté vacío), con su total en soles
+  const monthTotals = new Map<string, number>([[currentMonthPrefix, 0]]);
+  for (const e of byMacro) {
+    const k = (e.date || '').slice(0, 7);
+    if (/^\d{4}-\d{2}$/.test(k)) monthTotals.set(k, (monthTotals.get(k) ?? 0) + toSoles(e));
+  }
+  const monthOptions: MonthOption[] = [...monthTotals.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([key, total]) => ({ key, total }));
+  const historyTotal = byMacro.reduce((s, e) => s + toSoles(e), 0);
 
   const groupedByDate: { label: string; items: Expense[] }[] = [];
   visibleExpenses.forEach(e => {
@@ -679,14 +699,14 @@ export default function ExpensesTab({
     else groupedByDate.push({ label, items: [e] });
   });
 
-  const totalVisible = visibleExpenses.reduce((s, e) => {
-    const r = e.currency === 'USD' ? (e.exchangeRate || 3.8) : 1;
-    return s + e.amount * r;
-  }, 0);
+  const totalVisible = visibleExpenses.reduce((s, e) => s + toSoles(e), 0);
 
-  const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-  const dayOfMonth = new Date().getDate();
-  const dailyAvg = dayOfMonth > 0 ? totalVisible / dayOfMonth : 0;
+  // Promedio diario de un mes: el actual se divide por los días transcurridos;
+  // uno pasado, por todos sus días. Con "todo el historial" no aplica.
+  const avgDays = filterMonth === 'todo' ? 0
+    : filterMonth === currentMonthPrefix ? new Date().getDate()
+    : new Date(Number(filterMonth.slice(0, 4)), Number(filterMonth.slice(5, 7)), 0).getDate();
+  const dailyAvg = avgDays > 0 ? totalVisible / avgDays : 0;
 
   return (
     <div className="max-w-xl mx-auto" style={{ background: '#F9FAFB', minHeight: '100vh', paddingBottom: 96 }}>
@@ -736,37 +756,15 @@ export default function ExpensesTab({
 
       {/* ── Header / Chips de filtro ── */}
       <div className="px-4 pt-4 pb-3">
-        {/* Fila 1: categoría */}
-        <div className="flex items-center gap-2">
-          {([
-            { id: 'todos', label: 'Todos' },
-            { id: 'hogar', label: 'Hogar' },
-            { id: 'personal', label: 'Personal' },
-          ] as const).map(f => (
-            <button key={f.id} type="button"
-              onClick={() => setFilterMacro(f.id)}
-              className={`flex items-center gap-1 h-8 px-3 rounded-full text-[13px] font-medium shrink-0 transition active:scale-95 ${filterMacro === f.id ? 'bg-indigo-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'}`}>
-              {f.id === 'hogar' && <Home size={12} aria-hidden="true" />}
-              {f.id === 'personal' && <User size={12} aria-hidden="true" />}
-              {f.label}
-            </button>
-          ))}
-          <div className="flex-1" />
-        </div>
-        {/* Fila 2: período */}
-        <div className="flex items-center gap-2 mt-2">
-          {([
-            { id: 'mes', label: 'Este mes' },
-            { id: 'todo', label: 'Todos' },
-          ] as const).map(p => (
-            <button key={p.id} type="button"
-              onClick={() => setFilterMonth(p.id)}
-              className={`flex items-center gap-1 h-7 px-3 rounded-full text-[12px] font-medium transition active:scale-95 ${filterMonth === p.id ? 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500'}`}>
-              {p.id === 'mes' && <Calendar size={11} aria-hidden="true" />}
-              {p.label}
-            </button>
-          ))}
-        </div>
+        <ExpenseFilters
+          macro={filterMacro}
+          onMacro={setFilterMacro}
+          period={filterMonth}
+          onPeriod={setFilterMonth}
+          months={monthOptions}
+          historyTotal={historyTotal}
+          currentMonth={currentMonthPrefix}
+        />
       </div>
 
       {/* ── Balance card ── */}
@@ -780,7 +778,7 @@ export default function ExpensesTab({
               <p className="text-[13px] font-semibold text-emerald-700 dark:text-emerald-400">¡Todo al día!</p>
               <p className="text-[11px] text-zinc-400">Sin deudas pendientes</p>
             </div>
-            {filterMonth === 'mes' && (
+            {filterMonth !== 'todo' && (
               <div className="text-right">
                 <p className="text-[11px] text-zinc-400">Promedio diario</p>
                 <p className="text-[14px] font-semibold text-zinc-700 dark:text-zinc-300 tabular-nums">S/ {dailyAvg.toFixed(0)}</p>
@@ -932,8 +930,34 @@ export default function ExpensesTab({
       <div className="px-4 pt-3 space-y-4">
         {groupedByDate.length === 0 ? (
           <div className="py-16 text-center">
-            <p className="text-[15px] font-medium text-zinc-400">Sin gastos registrados</p>
-            <p className="text-[13px] text-zinc-300 dark:text-zinc-600 mt-1">Toca + para agregar uno</p>
+            {(() => {
+              // "Sin gastos registrados" solo si de verdad no hay ninguno. Antes
+              // salía también el día 1 con "Este mes", aunque hubiera meses de
+              // gastos detrás.
+              const kind = filterMacro === 'hogar' ? ' de hogar' : filterMacro === 'personal' ? ' personales' : '';
+              const prev = monthOptions.find(m => m.key < filterMonth && m.total > 0);
+              if (filteredExpenses.length === 0) {
+                return (
+                  <>
+                    <p className="text-[15px] font-medium text-zinc-400">Sin gastos registrados</p>
+                    <p className="text-[13px] text-zinc-300 dark:text-zinc-600 mt-1">Toca + para agregar uno</p>
+                  </>
+                );
+              }
+              return (
+                <>
+                  <p className="text-[15px] font-medium text-zinc-400">
+                    {filterMonth === 'todo' ? `No hay gastos${kind}` : `No hay gastos${kind} en ${monthLabel(filterMonth, currentMonthPrefix).toLowerCase()}`}
+                  </p>
+                  {filterMonth !== 'todo' && prev && (
+                    <button type="button" onClick={() => setFilterMonth(prev.key)}
+                      className="text-[13px] font-semibold text-indigo-600 mt-2">
+                      Ver {monthLabel(prev.key, currentMonthPrefix).toLowerCase()}
+                    </button>
+                  )}
+                </>
+              );
+            })()}
           </div>
         ) : (
           groupedByDate.map(group => (
