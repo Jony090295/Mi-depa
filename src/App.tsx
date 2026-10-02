@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { Roommate, Expense, RecurrentBill, RecurrentBillHistory, ForumPost, ForumReply, SettlementRecord, VariableReminder, HOGAR_DEFAULT_CATEGORIES, PERSONAL_DEFAULT_CATEGORIES } from './types';
-import { calculateSettlements, configManagedBillKind, netSettlementsInSoles, localDateISO } from './utils';
+import { calculateSettlements, configManagedBillKind, netSettlementsInSoles, localDateISO, localMonthISO } from './utils';
 
 // Auth + Supabase
 import { useAuth } from './hooks/useAuth';
@@ -17,7 +17,8 @@ import RecurrentsScreen from './components/RecurrentsScreen';
 // Components
 import ExpensesTab from './components/ExpensesTab';
 import RecurrentBillsTab from './components/RecurrentBillsTab';
-import BudgetLimitsTab, { loadLimits } from './components/BudgetLimitsTab';
+import BudgetLimitsTab from './components/BudgetLimitsTab';
+import { loadLimits, limitAlerts, monthSpending, renameLimitCategory, dropLimitCategory } from './lib/budgetLimits';
 import CommunityTab from './components/CommunityTab';
 import ProjectedBudget from './components/ProjectedBudget';
 
@@ -1059,19 +1060,12 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
         })()}
 
         {activeTab === 'expenses' && (() => {
-          const _limits = loadLimits(data.apartmentId);
-          const _monthStart = new Date(); _monthStart.setDate(1); _monthStart.setHours(0,0,0,0);
-          const _monthExp = expenses.filter(e => e.date && new Date(e.date + 'T00:00:00') >= _monthStart);
-          const _spentHogar = _monthExp.filter(e => e.macroCategory === 'hogar').reduce((s, e) => s + e.amount * (e.currency === 'USD' ? (e.exchangeRate || rentExchangeRate) : 1), 0);
-          const _spentPersonal = _monthExp.filter(e => e.macroCategory === 'personal').reduce((s, e) => s + e.amount * (e.currency === 'USD' ? (e.exchangeRate || rentExchangeRate) : 1), 0);
-          const _catSpent: Record<string,number> = {};
-          _monthExp.forEach(e => { const c = e.category || 'otros'; _catSpent[c] = (_catSpent[c] ?? 0) + e.amount * (e.currency === 'USD' ? (e.exchangeRate || rentExchangeRate) : 1); });
-          const _alerts: string[] = [];
-          if (_limits.global_hogar && _spentHogar / _limits.global_hogar >= 0.8) _alerts.push(`Total Hogar al ${Math.round(_spentHogar / _limits.global_hogar * 100)}%`);
-          if (_limits.global_personal && _spentPersonal / _limits.global_personal >= 0.8) _alerts.push(`Total Personal al ${Math.round(_spentPersonal / _limits.global_personal * 100)}%`);
-          Object.entries(_catSpent).forEach(([cat, spent]) => {
-            if (_limits[cat] && spent / _limits[cat]! >= 0.8) _alerts.push(`${cat.charAt(0).toUpperCase() + cat.slice(1)} al ${Math.round(spent / _limits[cat]! * 100)}%`);
-          });
+          const _cats = { hogar: hogarCategories, personal: personalCategories };
+          const _alerts = limitAlerts(
+            loadLimits(data.apartmentId, _cats),
+            monthSpending(expenses, localMonthISO(), rentExchangeRate),
+            _cats,
+          );
           return _alerts.length > 0 ? (
             <div className="mb-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3.5 flex items-start gap-2.5">
               <AlertTriangle size={15} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
@@ -1147,8 +1141,16 @@ function AppMain({ user, joinCode }: { user: User; joinCode?: string }) {
           personalCategories={personalCategories}
           usage={categoryUsage}
           onAdd={(name, macro) => macro === 'hogar' ? addHogarCategory(name) : addPersonalCategory(name)}
-          onRename={renameCategory}
-          onDelete={deleteCategory}
+          onRename={async (from, to, macro) => {
+            await renameCategory(from, to, macro);
+            // Mismo nombre que guarda renameCategory, para que el límite lo siga
+            renameLimitCategory(data.apartmentId, { hogar: hogarCategories, personal: personalCategories },
+              macro, from.trim(), to.trim().toLowerCase());
+          }}
+          onDelete={async (name, macro, moveTo) => {
+            await deleteCategory(name, macro, moveTo);
+            dropLimitCategory(data.apartmentId, { hogar: hogarCategories, personal: personalCategories }, macro, name);
+          }}
           onClose={() => setCategoriesOpen(null)}
         />
       )}
